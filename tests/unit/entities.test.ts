@@ -1,7 +1,7 @@
 // Entity behaviour on the one-per-mechanic fixtures (§7.10).
 import { describe, expect, it } from "vitest";
 import { TICK_HZ } from "../../src/sim/constants";
-import type { SimEvent } from "../../src/sim/types";
+import type { EntitySnapshot, SimEvent } from "../../src/sim/types";
 import { idle, loadFixture, makeSim, place } from "../helpers";
 
 const deaths = (ev: SimEvent[]) =>
@@ -66,10 +66,10 @@ describe("entities", () => {
 
   it("a moving platform travels along its path and carries ground with it", () => {
     const sim = makeSim(loadFixture("fx-platform"));
-    const at0 = sim.snapshot().entities[0]!;
+    const at0 = posOf(sim.snapshot().entities[0]);
     expect(sim.terrain.groundAt(4, 7, sim.tick)?.carrier).toBeTruthy();
     idle(sim, 3 * TICK_HZ);
-    const at1 = sim.snapshot().entities[0]!;
+    const at1 = posOf(sim.snapshot().entities[0]);
     expect(at1.y).toBeGreaterThan(at0.y + 1);
   });
 
@@ -85,9 +85,9 @@ describe("entities", () => {
 
   it("a patrolling steelie walks its path", () => {
     const sim = makeSim(loadFixture("fx-steelie"));
-    const y0 = sim.snapshot().entities[0]!.y;
+    const y0 = posOf(sim.snapshot().entities[0]).y;
     idle(sim, 2 * TICK_HZ);
-    expect(sim.snapshot().entities[0]!.y).toBeGreaterThan(y0 + 1);
+    expect(posOf(sim.snapshot().entities[0]).y).toBeGreaterThan(y0 + 1);
   });
 
   it("checkpoints activate and become the respawn point", () => {
@@ -98,3 +98,8 @@ describe("entities", () => {
     expect(sim.players[0]!.activeCheckpoint).toBe(0);
   });
 });
+
+function posOf(e: EntitySnapshot | undefined): { x: number; y: number } {
+  if (!e || !("y" in e)) throw new Error(`entity has no position: ${e?.type}`);
+  return e;
+}
