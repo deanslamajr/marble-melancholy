@@ -3,6 +3,6 @@ dist
 playwright-report
 test-results
 coverage
-.firebase
+deploy/k8s/backups
 .DS_Store
 *.log

@@ -1,0 +1,119 @@
+# Applied by `npm run deploy`, which replaces IMAGE with the pushed image tag.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: marble-melancholy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marble
+  namespace: marble-melancholy
+  labels:
+    app: marble
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: marble
+  template:
+    metadata:
+      labels:
+        app: marble
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: IMAGE
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: marble
+  namespace: marble-melancholy
+spec:
+  selector:
+    app: marble
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: marble-health-check
+  namespace: marble-melancholy
+spec:
+  default:
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 8080
+        requestPath: /healthz
+  targetRef:
+    group: ""
+    kind: Service
+    name: marble
+---
+# Attaches to the shared llmgag/dslama.net Gateway (its listener allows routes from all namespaces).
+# TLS comes from the Gateway's Certificate Manager map; see README "Deploying the beta".
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: marble-llmgag-world
+  namespace: marble-melancholy
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: external-https
+      namespace: default
+  hostnames:
+    - "marble.llmgag.world"
+  rules:
+    - backendRefs:
+        - name: marble
+          port: 80
