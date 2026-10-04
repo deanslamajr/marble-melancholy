@@ -85,21 +85,43 @@ Compiled outputs in `levels/compiled/` are committed; the test suite fails if th
 
 ## Deploying the beta
 
-The public beta is a static Firebase Hosting site, `marble-melancholy`, in the GCP project
-`development-262721`. It is served at <https://marble.llmgag.world/> and
-<https://marble-melancholy.web.app/>. HTTPS is required: level loading checks SHA-256 stamps with
-`crypto.subtle`, which browsers only provide on HTTPS or localhost.
+The public beta is served at <https://marble.llmgag.world/> from the GKE cluster `cluster-1` in
+the GCP project `development-262721`, the same cluster as llmgag. HTTPS is required: level loading
+checks SHA-256 stamps with `crypto.subtle`, which browsers only provide on HTTPS or localhost.
 
 ```sh
-npm run deploy           # build, upload dist/ and release it
-npm run deploy:status    # live release, plus custom-domain and certificate state
+npm run deploy           # build, push the image, apply the manifests, wait for the rollout
+npm run deploy:status    # rollout, route, Gateway, certificate, DNS and HTTPS state
 ```
 
-`npm run deploy` uses your gcloud login (`gcloud auth login`) instead of `firebase login`. If
-`gcloud` is not on your PATH, set `GCLOUD=/path/to/gcloud`. The site name and cache headers come
-from `firebase.json`, so `npx firebase-tools deploy --only hosting` does the same job.
+`npm run deploy` needs Docker with `buildx`, `kubectl` and a gcloud login. Docker must be able to
+push to `us-central1-docker.pkg.dev` (`gcloud auth configure-docker us-central1-docker.pkg.dev`).
+The script builds `dist/`, builds a `linux/amd64` nginx image (`Dockerfile`,
+`deploy/nginx.conf`) and pushes it as
+`us-central1-docker.pkg.dev/development-262721/marble-melancholy/web:<git sha>`. Then it applies
+`deploy/k8s/marble.yaml` with that tag and waits for the rollout. It always uses the kubectl
+context `gke_development-262721_us-central1-a_cluster-1`. Override it with `KUBE_CONTEXT`, and set
+`GCLOUD` if `gcloud` is not on your PATH. Commit before deploying: a build from a tree with
+uncommitted changes is tagged `<sha>-dirty-<time>`.
+
 `index.html` is served with `no-cache`, and the hashed files in `assets/` are cached for a year,
 so players get a new build the next time they load the page.
+
+If `deploy:status` shows `gateway Programmed=False`, the shared Gateway is rejecting one of its
+routes. While it does, GKE pushes no route changes to the load balancer for any host on it, and
+`marble.llmgag.world` stays out of the URL map.
+
+**How it is wired.** The namespace `marble-melancholy` holds one nginx pod, a Service, a GKE
+HealthCheckPolicy (`/healthz`) and an HTTPRoute for `marble.llmgag.world`. The HTTPRoute attaches
+to the shared Gateway `default/external-https` (34.117.49.14), which also serves the llmgag
+hosts. TLS comes from the Certificate Manager certificate `marble-llmgag-world`, through its entry
+in the Gateway's cert map `dslama-net-map`. DNS for `llmgag.world` is at Squarespace Domains, which
+holds two records for the beta:
+
+| Host                     | Type  | Value                                                                       |
+| ------------------------ | ----- | --------------------------------------------------------------------------- |
+| `marble`                 | A     | `34.117.49.14`                                                              |
+| `_acme-challenge.marble` | CNAME | `d1e102d8-8405-4373-85b4-cad316810fb0.8.authorize.certificatemanager.goog.` |
 
 The title screen shows the build in the corner, for example `BETA 1.0.0 · 86b7038`. Testers can
 quote it in feedback. `+dirty` after the commit means the build had uncommitted changes.
@@ -114,12 +136,8 @@ echo 'VITE_FEEDBACK_URL=https://forms.gle/your-form' > .env.production
 npm run deploy
 ```
 
-For a single deploy, run `VITE_FEEDBACK_URL=https://… npm run deploy`.
-
-**Custom domain.** `npm run deploy:domain -- marble.llmgag.world` connects the domain to the site.
-It then prints the DNS records that Firebase expects. DNS for `llmgag.world` is managed at
-Squarespace Domains, so add those records there. Firebase gets the TLS certificate by itself after
-the records resolve.
+For a single deploy, run `VITE_FEEDBACK_URL=https://… npm run deploy`. The URL is compiled into
+the JavaScript, so changing it always needs a redeploy.
 
 ## Credits
 
