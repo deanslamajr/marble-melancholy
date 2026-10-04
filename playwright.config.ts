@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "tests",
-  testMatch: ["e2e/**/*.spec.ts", "perf/**/*.spec.ts"],
+  testMatch: "e2e/**/*.spec.ts",
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
@@ -16,6 +16,13 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    // Frame timing needs an otherwise idle machine, so it runs alone after the E2E projects.
+    {
+      name: "perf",
+      testMatch: "perf/**/*.spec.ts",
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["chromium", "firefox", "webkit"],
+    },
   ],
   webServer: {
     command: "npx vite build && npx vite preview --port 4173 --strictPort",
