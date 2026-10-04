@@ -1,5 +1,6 @@
 import { formatScore } from "../../game/scoring";
 import { useController } from "../context";
+import { FeedbackLink } from "./FeedbackLink";
 import { PixelText } from "./PixelText";
 
 export function GameOver() {
@@ -16,6 +17,7 @@ export function GameOver() {
           {formatScore(s)}
         </PixelText>
       ))}
+      <FeedbackLink />
     </div>
   );
 }

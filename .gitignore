@@ -3,5 +3,6 @@ dist
 playwright-report
 test-results
 coverage
+.firebase
 .DS_Store
 *.log

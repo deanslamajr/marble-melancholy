@@ -810,4 +810,9 @@ export class GameController {
   stateHash(): string | null {
     return this.sim ? this.sim.hash() : null;
   }
+
+  marble(player: number): { x: number; y: number; vx: number; vy: number; status: string } | null {
+    const p = this.cur?.players[player];
+    return p ? { x: p.x, y: p.y, vx: p.vx, vy: p.vy, status: p.status } : null;
+  }
 }

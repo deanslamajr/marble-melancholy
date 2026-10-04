@@ -70,17 +70,56 @@ Compiled outputs in `levels/compiled/` are committed; the test suite fails if th
 
 ## Development
 
-| Script                 | Purpose                                                                               |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| `npm test`             | Check compiled levels, then run Vitest (unit, levels, enforcement, storage, sim perf) |
-| `npm run test:e2e`     | Playwright on chromium, firefox and webkit                                            |
-| `npm run test:perf`    | Playwright frame-time budget on chromium                                              |
-| `npm run lint`         | ESLint and Prettier check                                                             |
-| `npm run typecheck`    | `tsc` for the app and for tools/tests                                                 |
-| `npm run levels:build` | Recompile all level sources                                                           |
+| Script                    | Purpose                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `npm test`                | Check compiled levels, then run Vitest (unit, levels, enforcement, storage, sim perf) |
+| `npm run test:e2e`        | Playwright on chromium, firefox and webkit                                            |
+| `npm run test:e2e:mobile` | Playwright on emulated Pixel 7 and iPhone 14, portrait and landscape, with touch      |
+| `npm run test:perf`       | Playwright frame-time budget on chromium                                              |
+| `npm run lint`            | ESLint and Prettier check                                                             |
+| `npm run typecheck`       | `tsc` for the app and for tools/tests                                                 |
+| `npm run levels:build`    | Recompile all level sources                                                           |
 
 `?e2e=1` exposes `window.__mm`, a small test API used by Playwright. Design decisions are in
 [`PLAN.md`](PLAN.md) (D01–D37) and [`DECISIONS.md`](DECISIONS.md).
+
+## Deploying the beta
+
+The public beta is a static Firebase Hosting site, `marble-melancholy`, in the GCP project
+`development-262721`. It is served at <https://marble.llmgag.world/> and
+<https://marble-melancholy.web.app/>. HTTPS is required: level loading checks SHA-256 stamps with
+`crypto.subtle`, which browsers only provide on HTTPS or localhost.
+
+```sh
+npm run deploy           # build, upload dist/ and release it
+npm run deploy:status    # live release, plus custom-domain and certificate state
+```
+
+`npm run deploy` uses your gcloud login (`gcloud auth login`) instead of `firebase login`. If
+`gcloud` is not on your PATH, set `GCLOUD=/path/to/gcloud`. The site name and cache headers come
+from `firebase.json`, so `npx firebase-tools deploy --only hosting` does the same job.
+`index.html` is served with `no-cache`, and the hashed files in `assets/` are cached for a year,
+so players get a new build the next time they load the page.
+
+The title screen shows the build in the corner, for example `BETA 1.0.0 · 86b7038`. Testers can
+quote it in feedback. `+dirty` after the commit means the build had uncommitted changes.
+
+**Feedback link.** Set `VITE_FEEDBACK_URL` at build time to show a FEEDBACK item in the title and
+pause menus and a small link on the result screens. Each one opens the URL in a new tab. When the
+variable is not set, the link is hidden. To set it for every deploy, commit a `.env.production`
+file and redeploy:
+
+```sh
+echo 'VITE_FEEDBACK_URL=https://forms.gle/your-form' > .env.production
+npm run deploy
+```
+
+For a single deploy, run `VITE_FEEDBACK_URL=https://… npm run deploy`.
+
+**Custom domain.** `npm run deploy:domain -- marble.llmgag.world` connects the domain to the site.
+It then prints the DNS records that Firebase expects. DNS for `llmgag.world` is managed at
+Squarespace Domains, so add those records there. Firebase gets the TLS certificate by itself after
+the records resolve.
 
 ## Credits
 

@@ -1,12 +1,24 @@
 import { navigate } from "../../app/router";
-import { APP_VERSION } from "../../version";
+import { BUILD_LABEL, FEEDBACK_URL, openFeedback } from "../../version";
 import { useController } from "../context";
-import { MenuList } from "./MenuList";
+import { MenuList, type MenuItem } from "./MenuList";
 import { PixelText } from "./PixelText";
 
 export function TitleScreen() {
   const c = useController();
   const err = c.error.value;
+  const items: MenuItem[] = [
+    {
+      label: "PLAY",
+      onSelect: () => navigate({ name: "play" }),
+      disabled: c.courseLevels.length === 0,
+    },
+    { label: "CUSTOM RACES", onSelect: () => navigate({ name: "custom" }) },
+    { label: "LEVEL BUILDER", onSelect: () => navigate({ name: "builder" }) },
+    { label: "HIGH SCORES", onSelect: () => navigate({ name: "scores" }) },
+    { label: "SETTINGS", onSelect: () => navigate({ name: "settings" }) },
+  ];
+  if (FEEDBACK_URL) items.push({ label: "FEEDBACK", onSelect: openFeedback, hint: "↗" });
   return (
     <div class="overlay title-screen" data-testid="title-screen">
       <div class="title-logo">
@@ -25,22 +37,9 @@ export function TitleScreen() {
           {err}
         </PixelText>
       )}
-      <MenuList
-        testId="title-menu"
-        items={[
-          {
-            label: "PLAY",
-            onSelect: () => navigate({ name: "play" }),
-            disabled: c.courseLevels.length === 0,
-          },
-          { label: "CUSTOM RACES", onSelect: () => navigate({ name: "custom" }) },
-          { label: "LEVEL BUILDER", onSelect: () => navigate({ name: "builder" }) },
-          { label: "HIGH SCORES", onSelect: () => navigate({ name: "scores" }) },
-          { label: "SETTINGS", onSelect: () => navigate({ name: "settings" }) },
-        ]}
-      />
+      <MenuList testId="title-menu" items={items} />
       <PixelText size="s" tone="dim" class="version">
-        v{APP_VERSION}
+        {BUILD_LABEL}
       </PixelText>
     </div>
   );

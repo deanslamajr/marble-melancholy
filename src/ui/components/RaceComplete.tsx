@@ -1,5 +1,6 @@
 import { formatScore } from "../../game/scoring";
 import { useController } from "../context";
+import { FeedbackLink } from "./FeedbackLink";
 import { PixelText } from "./PixelText";
 
 export function RaceComplete() {
@@ -21,6 +22,7 @@ export function RaceComplete() {
             {cu.newBest && <PixelText tone="accent">NEW BEST</PixelText>}
           </>
         )}
+        <FeedbackLink />
       </div>
     );
   }
@@ -51,6 +53,7 @@ export function RaceComplete() {
           <Row label="TOTAL" values={r.rows.map((x) => formatScore(x.total))} strong />
         </tbody>
       </table>
+      <FeedbackLink />
     </div>
   );
 }

@@ -16,6 +16,7 @@ export interface MmTestApi {
   injectInput(player: number, ax: number | null, ay?: number): void;
   perf(): { fps: number; frameMs: number; worstMs: number; frames: number; ticks: number };
   stateHash(): string | null;
+  marble(player: number): ReturnType<GameController["marble"]>;
   hud(): unknown;
   startCourse(players: 1 | 2): void;
   /** Play race `index` (0-based course order) in custom mode. */
@@ -46,6 +47,7 @@ export function installTestApi(c: GameController): void {
     },
     perf: () => ({ fps: c.fps.value, ...c.perf }),
     stateHash: () => c.stateHash(),
+    marble: (p) => c.marble(p),
     hud: () => c.hud.value,
     startCourse: (n) => c.startCourse(n),
     startRace: async (index) => {

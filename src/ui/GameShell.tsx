@@ -113,11 +113,15 @@ export function GameShell(props: { controller: GameController }) {
       if (c.state.value === "attract") c.dismiss();
       else c.noteActivity();
     };
+    // A touch pointerdown is not a user activation; audio can only resume on the matching pointerup.
+    const onPointerUp = () => c.unlockAudio();
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("pointerup", onPointerUp);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("pointerup", onPointerUp);
     };
   }, [c]);
 
@@ -129,6 +133,9 @@ export function GameShell(props: { controller: GameController }) {
   return (
     <ControllerContext.Provider value={c}>
       <div class="stage-wrap">
+        <div class="rotate-hint" aria-hidden="true">
+          ↻ ROTATE FOR A BIGGER VIEW
+        </div>
         <div class="stage" data-state={state} data-testid="stage">
           <canvas id="world" ref={canvasRef} class="world" onClick={() => c.requestPointerLock()} />
           {state === "title" && <TitleScreen />}

@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   define: {
     BUILD_VERSION: JSON.stringify("test"),
+    BUILD_COMMIT: JSON.stringify("test"),
   },
   test: {
     environment: "node",

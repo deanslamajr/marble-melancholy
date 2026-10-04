@@ -13,9 +13,21 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "chromium", testIgnore: "e2e/mobile.spec.ts", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", testIgnore: "e2e/mobile.spec.ts", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", testIgnore: "e2e/mobile.spec.ts", use: { ...devices["Desktop Safari"] } },
+    ...(
+      [
+        ["pixel", "Pixel 7"],
+        ["pixel-landscape", "Pixel 7 landscape"],
+        ["iphone", "iPhone 14"],
+        ["iphone-landscape", "iPhone 14 landscape"],
+      ] as const
+    ).map(([name, device]) => ({
+      name,
+      testMatch: "e2e/mobile.spec.ts",
+      use: { ...devices[device] },
+    })),
     // Frame timing needs an otherwise idle machine, so it runs alone after the E2E projects.
     {
       name: "perf",
