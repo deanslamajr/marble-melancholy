@@ -1,0 +1,73 @@
+format: mm-level-source/1
+id: fx-inverted
+name: Upside Ramp
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 8, height: 18 }
+layers:
+  heights: |
+    ........
+    .444444.
+    .444444.
+    .444444.
+    .444444.
+    .555555.
+    .666666.
+    .777777.
+    .888888.
+    .999999.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    ........
+  slopes: |
+    ........
+    ........
+    ........
+    ........
+    ........
+    .NNNNNN.
+    .NNNNNN.
+    .NNNNNN.
+    .NNNNNN.
+    .NNNNNN.
+    .NNNNNN.
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+  walls: |
+    ........
+    .911113.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .C44446.
+    ........
+start: { p1: [3, 2], p2: [4, 2] }
+goal: { at: [3, 14] }
+physics: { slopeGravityScale: -1 }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [3, 14], speed: 0.6 }

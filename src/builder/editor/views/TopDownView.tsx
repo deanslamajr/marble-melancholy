@@ -487,9 +487,8 @@ function drawSlope(
   ctx.strokeStyle = steep ? "#ff9d5c" : "rgba(255,255,255,0.75)";
   ctx.lineWidth = steep ? 2 : 1.5;
   ctx.beginPath();
-  // Arrow points downhill: the tag names the raised side.
-  const dx = -d[0];
-  const dy = -d[1];
+  // Arrow points downhill; the slope code names the descending direction.
+  const [dx, dy] = d;
   ctx.moveTo(cx - dx * L, cy - dy * L);
   ctx.lineTo(cx + dx * L, cy + dy * L);
   ctx.lineTo(cx + dx * L * 0.4 - dy * L * 0.5, cy + dy * L * 0.4 - dx * L * 0.5);

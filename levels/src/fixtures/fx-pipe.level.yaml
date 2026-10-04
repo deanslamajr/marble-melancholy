@@ -1,0 +1,56 @@
+format: mm-level-source/1
+id: fx-pipe
+name: Pipe Drop
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 8, height: 18 }
+layers:
+  heights: |
+    ........
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    ........
+    ........
+    ........
+    ........
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    ........
+  walls: |
+    ........
+    .911113.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .C44446.
+    ........
+    ........
+    ........
+    ........
+    .911113.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .C44446.
+    ........
+start: { p1: [3, 2], p2: [4, 2] }
+goal: { at: [3, 15] }
+entities:
+  - { type: pipe, entry: [3, 5], exit: [3, 12], exitVelocity: [0, 2, 0] }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [3, 5], speed: 0.5, radius: 0.2 }
+    - { at: [3, 15], speed: 0.6 }

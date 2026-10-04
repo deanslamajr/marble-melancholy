@@ -1,0 +1,75 @@
+format: mm-level-source/1
+id: fx-checkpoint
+name: Checkpoint
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 8, height: 18 }
+layers:
+  heights: |
+    ........
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .AAAAAA.
+    .999999.
+    .888888.
+    .777777.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    ........
+  slopes: |
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+    .SSSSSS.
+    .SSSSSS.
+    .SSSSSS.
+    .SSSSSS.
+    ........
+    ........
+    ........
+    ........
+    ........
+  walls: |
+    ........
+    .911113.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .C44446.
+    ........
+start: { p1: [3, 2], p2: [4, 2] }
+goal: { at: [3, 15] }
+checkpoints:
+  - { at: [3, 7], radius: 1.0 }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [3, 7], speed: 0.6 }
+    - { at: [3, 15], speed: 0.6 }

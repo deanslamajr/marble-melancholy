@@ -1,0 +1,22 @@
+format: mm-level-source/1
+id: bad
+name: Bad Level
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 6, height: 6 }
+layers:
+  heights: |
+    666666
+    666666
+    666666
+    666666
+    666666
+    666666
+start: { p1: [1, 1], p2: [2, 1] }
+goal: { at: [1, 1] }
+timing: { timeLimit: 10, par: 5 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [4, 4], speed: 0.8 }

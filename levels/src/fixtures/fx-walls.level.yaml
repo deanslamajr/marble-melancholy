@@ -1,0 +1,41 @@
+format: mm-level-source/1
+id: fx-walls
+name: Wall Detour
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 9, height: 11 }
+layers:
+  heights: |
+    .........
+    .4444444.
+    .4444444.
+    .4444444.
+    .4444444.
+    .4444444.
+    .4444444.
+    .4444444.
+    .4444444.
+    .4444444.
+    .........
+  walls: |
+    .........
+    .9111113.
+    .8.....2.
+    .8.....2.
+    .C4444.2.
+    .91111.2.
+    .8.....2.
+    .8.....2.
+    .8.....2.
+    .C444446.
+    .........
+start: { p1: [2, 2], p2: [3, 2] }
+goal: { at: [3, 8] }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [6, 3], speed: 0.7 }
+    - { at: [6, 6], speed: 0.7 }
+    - { at: [3, 8], speed: 0.6 }

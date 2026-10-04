@@ -9,7 +9,22 @@
     "ultimate"
   ],
   "fixtures": [
+    "fx-acid",
+    "fx-catapult",
+    "fx-checkpoint",
     "fx-flat",
-    "fx-ramp-gap"
+    "fx-funnel",
+    "fx-hammer",
+    "fx-hoover",
+    "fx-ice",
+    "fx-inverted",
+    "fx-muncher",
+    "fx-pipe",
+    "fx-platform",
+    "fx-ramp-gap",
+    "fx-speed",
+    "fx-steelie",
+    "fx-walls",
+    "fx-wave"
   ]
 }

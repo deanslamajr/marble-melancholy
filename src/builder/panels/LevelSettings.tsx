@@ -11,6 +11,12 @@ import { resizeGrid } from "../editor/commands";
 import type { EditorState } from "../editor/EditorState";
 import { NumberField } from "./fields";
 
+const PHYSICS_RANGES = [
+  ["slopeGravityScale", -1, 2],
+  ["frictionScale", 0.25, 3],
+  ["inputScale", 0.5, 1.5],
+] as const;
+
 const COLOR_KEYS = ["top", "sideLight", "sideDark", "rail", "bgTop", "bgBottom", "accent"] as const;
 
 function setIn<K extends keyof LevelSource>(
@@ -234,14 +240,14 @@ export function LevelSettings(props: { ed: EditorState }) {
       </details>
       <details>
         <summary>Physics</summary>
-        {(["slopeGravityScale", "frictionScale", "inputScale"] as const).map((k) => (
+        {PHYSICS_RANGES.map(([k, min, max]) => (
           <NumberField
             key={k}
             label={k}
             value={s.physics?.[k]}
             placeholder="1"
-            min={0.5}
-            max={1.5}
+            min={min}
+            max={max}
             step={0.05}
             onChange={(v) => ed.apply((x) => setIn(x, "physics", prune({ ...x.physics, [k]: v })))}
           />

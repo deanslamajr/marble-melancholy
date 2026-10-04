@@ -1,0 +1,51 @@
+format: mm-level-source/1
+id: fx-wave
+name: Wave Floor
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 8, height: 16 }
+layers:
+  heights: |
+    ........
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    .666666.
+    ........
+  walls: |
+    ........
+    .911113.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .C44446.
+    ........
+start: { p1: [3, 2], p2: [4, 2] }
+goal: { at: [3, 13] }
+entities:
+  - { type: wave, rect: [1, 5, 6, 10], amplitude: 0.35, wavelength: 3.5, speed: 2, dir: [0, 1] }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [3, 13], speed: 0.6 }

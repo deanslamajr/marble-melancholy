@@ -1,0 +1,60 @@
+format: mm-level-source/1
+id: fx-funnel
+name: Funnel
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 10, height: 20 }
+layers:
+  heights: |
+    ..........
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    .AAAAAAAA.
+    ..........
+    ..........
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    ..........
+  walls: |
+    ..........
+    .91111113.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .C4444446.
+    ..........
+    ..........
+    .91111113.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .C4444446.
+    ..........
+start: { p1: [4, 2], p2: [5, 2] }
+goal: { at: [4, 17] }
+entities:
+  - { type: funnel, at: [4, 7], radius: 2.5, depth: 1.5, exit: [4, 14], exitVelocity: [0, 2, 0] }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [4, 7], speed: 0.6, radius: 0.2 }
+    - { at: [4, 17], speed: 0.6 }

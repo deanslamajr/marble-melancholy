@@ -1,0 +1,51 @@
+format: mm-level-source/1
+id: fx-hammer
+name: Hammer Side
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 10, height: 16 }
+layers:
+  heights: |
+    ..........
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    .66666666.
+    ..........
+  walls: |
+    ..........
+    .91111113.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .8......2.
+    .C4444446.
+    ..........
+start: { p1: [2, 2], p2: [3, 2] }
+goal: { at: [2, 13] }
+entities:
+  - { type: hammer, at: [7, 7], period: 2.4 }
+timing: { timeLimit: 20, par: 12 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [2, 13], speed: 0.6 }

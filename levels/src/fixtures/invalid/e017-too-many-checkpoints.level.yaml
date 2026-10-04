@@ -1,0 +1,40 @@
+format: mm-level-source/1
+id: bad
+name: Bad Level
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 20, height: 6 }
+layers:
+  heights: |
+    66666666666666666666
+    66666666666666666666
+    66666666666666666666
+    66666666666666666666
+    66666666666666666666
+    66666666666666666666
+start: { p1: [1, 1], p2: [2, 1] }
+goal: { at: [4, 4], radius: 0.8 }
+checkpoints:
+  - { at: [3, 3] }
+  - { at: [4, 3] }
+  - { at: [5, 3] }
+  - { at: [6, 3] }
+  - { at: [7, 3] }
+  - { at: [8, 3] }
+  - { at: [9, 3] }
+  - { at: [10, 3] }
+  - { at: [11, 3] }
+  - { at: [12, 3] }
+  - { at: [13, 3] }
+  - { at: [14, 3] }
+  - { at: [15, 3] }
+  - { at: [16, 3] }
+  - { at: [17, 3] }
+  - { at: [18, 3] }
+  - { at: [19, 3] }
+timing: { timeLimit: 10, par: 5 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [4, 4], speed: 0.8 }
