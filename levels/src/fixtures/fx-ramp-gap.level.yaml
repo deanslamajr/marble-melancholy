@@ -1,0 +1,62 @@
+format: mm-level-source/1
+id: fx-ramp-gap
+name: Ramp Gap
+author: fixtures
+theme: practice
+music: m1-first-steps
+grid: { width: 8, height: 14 }
+layers:
+  heights: |
+    ........
+    .888888.
+    .888888.
+    .888888.
+    .777777.
+    .666666.
+    .555555.
+    .444444.
+    .444444.
+    ........
+    .222222.
+    .222222.
+    .222222.
+    ........
+  slopes: |
+    ........
+    ........
+    ........
+    .SSSSSS.
+    .SSSSSS.
+    .SSSSSS.
+    .SSSSSS.
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+    ........
+  walls: |
+    ........
+    .911113.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    .8....2.
+    ........
+    .8....2.
+    .8....2.
+    .C44446.
+    ........
+start: { p1: [3, 2], p2: [4, 2] }
+goal: { at: [3, 11], radius: 0.8 }
+timing: { timeLimit: 15, par: 6 }
+solution:
+  kind: waypoints
+  points:
+    - { at: [3, 4], speed: 1.0 }
+    - { at: [3, 8], speed: 1.0, radius: 0.8 }
+    - { at: [3, 11], speed: 0.6 }

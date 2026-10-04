@@ -1,0 +1,8 @@
+{
+  "format": "mm-manifest/1",
+  "course": [],
+  "fixtures": [
+    "fx-flat",
+    "fx-ramp-gap"
+  ]
+}
