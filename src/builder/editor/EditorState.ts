@@ -89,6 +89,8 @@ export class EditorState {
   /** Path entity being placed with successive clicks (Entity tool). */
   readonly pendingPath = signal<number | null>(null);
   readonly version = signal(0);
+  /** Top-down view has fitted the grid to the viewport once. */
+  fitted = false;
 
   readonly history = new History();
   private validateTimer: ReturnType<typeof setTimeout> | null = null;

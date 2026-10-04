@@ -1,4 +1,4 @@
-import { verifyCompiled } from "../level/compile";
+import { verifyCompiled } from "../level/verify";
 import { formatDiagnostic } from "../level/diagnostics";
 import type { CompiledLevel } from "../level/types";
 import { courseIds, rawLevel } from "./manifest";

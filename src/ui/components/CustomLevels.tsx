@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { navigate } from "../../app/router";
-import { importText, pickFile } from "../../builder/editor/io";
+import { pickFile } from "../../app/files";
 import { LevelLoader } from "../../levels/loader";
 import { fixtureIds } from "../../levels/manifest";
 import { TICK_HZ } from "../../sim/constants";
@@ -52,6 +52,7 @@ export function CustomLevels() {
   const doImport = async () => {
     const f = await pickFile();
     if (!f) return;
+    const { importText } = await import("../../builder/editor/io");
     const r = await importText(f.text, f.name);
     if (r.kind === "error") return setMsg(r.message);
     const level = r.kind === "compiled" ? r.level : r.compiled;

@@ -103,6 +103,24 @@ export function TopDownView(props: { ed: EditorState }) {
     };
   }, [ed]);
 
+  // Fit the whole grid on first open.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || ed.fitted) return;
+    ed.fitted = true;
+    const { width, height } = ed.src.grid;
+    const margin = 24;
+    const z = Math.floor(
+      Math.min((wrap.clientWidth - margin * 2) / width, (wrap.clientHeight - margin * 2) / height),
+    );
+    const zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    ed.zoom.value = zoom;
+    ed.pan.value = {
+      x: (wrap.clientWidth - width * zoom) / 2,
+      y: (wrap.clientHeight - height * zoom) / 2,
+    };
+  }, [ed]);
+
   // Centre the focused cell (diagnostic click).
   useEffect(() => {
     const c = ed.focusCell.value;
