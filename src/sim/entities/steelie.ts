@@ -9,7 +9,9 @@ import {
   STEELIE_ACCEL,
   STEELIE_MASS,
   STEELIE_RADIUS,
+  STEELIE_RECOIL_TICKS,
   STEELIE_RESTITUTION,
+  STEELIE_RAM_MIN_IMPACT,
 } from "../constants";
 import type { EntitySnapshot, PlayerState } from "../types";
 import { PathWalker, walkableStep, type SimContext, type SimEntity } from "./base";
@@ -25,6 +27,8 @@ export class SteelieEntity implements SimEntity {
   private walker: PathWalker;
   private targetX: number;
   private targetY: number;
+  /** Ticks left during which a hunter stops chasing after a ram, so it cannot pin a marble (DECISIONS M09). */
+  recoil = 0;
 
   constructor(
     readonly def: CompiledSteelie,
@@ -74,9 +78,10 @@ export class SteelieEntity implements SimEntity {
     let ty = this.targetY;
     let best = this.def.aggroRadius;
     let chasing = false;
+    if (this.recoil > 0) this.recoil--;
     for (const p of sim.players) {
       const m = p.marble;
-      if (m.status !== "alive") continue;
+      if (this.recoil > 0 || m.status !== "alive") continue;
       const d = Math.sqrt((m.x - this.x) * (m.x - this.x) + (m.y - this.y) * (m.y - this.y));
       if (d < best && Math.abs(m.z - this.z) < 1.5) {
         best = d;
@@ -141,7 +146,10 @@ export class SteelieEntity implements SimEntity {
       this.x = bx;
       this.y = by;
     }
-    if (impact > 0) sim.emit({ t: "steelieRam", player: p.index });
+    if (impact > STEELIE_RAM_MIN_IMPACT) {
+      if (hunt) this.recoil = STEELIE_RECOIL_TICKS;
+      sim.emit({ t: "steelieRam", player: p.index });
+    }
   }
 
   onRespawn(sim: SimContext, x: number, y: number): void {
@@ -155,7 +163,7 @@ export class SteelieEntity implements SimEntity {
   hashInto(h: Fnv): void {
     h.fixed(this.x).fixed(this.y).fixed(this.z).fixed(this.vx).fixed(this.vy);
     h.int(this.walker.target).int(this.walker.dirSign);
-    h.fixed(this.targetX).fixed(this.targetY);
+    h.fixed(this.targetX).fixed(this.targetY).int(this.recoil);
   }
 
   snapshot(): EntitySnapshot {

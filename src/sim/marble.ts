@@ -10,6 +10,7 @@ import {
   INPUT_ACCEL,
   INPUT_MAX_SPEED,
   LAND_RESTITUTION,
+  LAND_SNAP,
   LINEAR_DRAG,
   MARBLE_RADIUS,
   MAX_SPEED,
@@ -164,8 +165,10 @@ export function integrateMarble(world: MarbleWorld, p: PlayerState, input: Input
     }
   } else {
     m.vz -= GRAVITY * DT;
+    const zPrev = m.z;
     m.z += m.vz * DT;
-    if (ground && m.z <= ground.z && m.vz <= 0) {
+    // Only land when crossing the surface from above; a marble under a platform keeps falling.
+    if (ground && m.z <= ground.z && m.vz <= 0 && zPrev >= ground.z - LAND_SNAP) {
       const fall = m.fallStartZ - ground.z;
       if (fall >= SHATTER_FALL_HEIGHT && !m.catapultFlight && !m.respawnDrop) {
         m.z = ground.z;

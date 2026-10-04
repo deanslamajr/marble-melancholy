@@ -25,6 +25,8 @@ export const FALL_START_THRESHOLD = 0.05;
 export const SHATTER_FALL_HEIGHT = 2.5;
 export const BOUNCE_MIN_VZ = 1.5;
 export const LAND_RESTITUTION = 0.3;
+/** Max depth below a surface from which an airborne marble may still land on it (units). */
+export const LAND_SNAP = 0.5;
 export const KILL_PLANE_BELOW_MIN = 4;
 export const CLACK_MIN_IMPACT = 1.5;
 export const RAIL_HEIGHT = 0.3;
@@ -46,6 +48,8 @@ export const FINISH_WINDOW_TICKS = 600;
 
 /** Steelie / muncher acceleration numbers (§7.10). */
 export const STEELIE_ACCEL = 12;
+export const STEELIE_RECOIL_TICKS = 60;
+export const STEELIE_RAM_MIN_IMPACT = 0.3;
 export const MUNCHER_LUNGE_SPEED = 6;
 export const MUNCHER_LUNGE_TICKS = 36;
 export const MUNCHER_REACH = 1.5;

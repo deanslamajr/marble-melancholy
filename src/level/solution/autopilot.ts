@@ -9,6 +9,11 @@ export const DEFAULT_WP_SPEED = 0.8;
 export const DEFAULT_WP_RADIUS = 0.6;
 export const MAX_DEATHS_PER_WAYPOINT = 6;
 
+/** What is under (x, y) right now: nothing, static terrain, or a moving carrier (platform). */
+export type GroundProbe = (x: number, y: number) => "none" | "static" | "carrier";
+
+const PROBE_STEP = 0.25;
+
 export class Autopilot {
   i = 0;
   holdLeft = 0;
@@ -17,7 +22,10 @@ export class Autopilot {
   failed = false;
   private wasHeld = false;
 
-  constructor(readonly points: readonly Waypoint[]) {}
+  constructor(
+    readonly points: readonly Waypoint[],
+    private readonly probe?: GroundProbe,
+  ) {}
 
   get done(): boolean {
     return this.i >= this.points.length;
@@ -69,6 +77,10 @@ export class Autopilot {
       desY = m.carrierVy;
       this.holdLeft--;
       if (this.holdLeft <= 0) this.advance(p);
+    } else if (m.grounded && !this.reachableNow(m.x, m.y, tx, ty, dist)) {
+      // Target is on a moving platform that is away: wait (riding any carrier) until it arrives (DECISIONS M10).
+      desX = m.carrierVx;
+      desY = m.carrierVy;
     } else if (dist < 1e-9) {
       desX = 0;
       desY = 0;
@@ -80,5 +92,18 @@ export class Autopilot {
     const rawX = (desX - wvx) * AUTOPILOT_GAIN;
     const rawY = (desY - wvy) * AUTOPILOT_GAIN;
     return quantizeInt(rawX, rawY);
+  }
+
+  private reachableNow(x: number, y: number, tx: number, ty: number, dist: number): boolean {
+    if (!this.probe) return true;
+    const under = this.probe(tx, ty);
+    if (under === "none") return false;
+    if (under === "static") return true;
+    const n = Math.ceil(dist / PROBE_STEP);
+    for (let k = 1; k < n; k++) {
+      const u = k / n;
+      if (this.probe(x + (tx - x) * u, y + (ty - y) * u) === "none") return false;
+    }
+    return true;
   }
 }

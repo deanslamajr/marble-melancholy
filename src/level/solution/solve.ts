@@ -1,5 +1,6 @@
 // solveSolution(level, spec) → Replay | failure trace (§6.4, §6.6).
 import { TICK_HZ } from "../../sim/constants";
+import type { RaceSim } from "../../sim/race";
 import { runInputs, type RunOptions, type RunResult } from "../../sim/replayRunner";
 import type { Cell, PlayableLevel, SolutionSource } from "../types";
 import { Autopilot } from "./autopilot";
@@ -45,11 +46,22 @@ export function solveSolution(
   let ap: Autopilot | null = null;
   switch (spec.kind) {
     case "waypoints": {
-      const pilot = new Autopilot(spec.points);
+      let current: RaceSim | null = null;
+      const pilot = new Autopilot(
+        spec.points,
+        (x, y) => {
+          if (!current) return "static";
+          const g = current.terrain.groundAt(x, y, current.tick);
+          return g === null ? "none" : g.carrier ? "carrier" : "static";
+        },
+      );
       ap = pilot;
       opts.onAutopilot?.(pilot);
       const maxTicks = Math.min(spec.maxTicks ?? limit, limit);
-      result = runInputs(level, (_sim, p) => (pilot.failed ? "abort" : pilot.input(p)), {
+      result = runInputs(level, (sim, p) => {
+        current = sim;
+        return pilot.failed ? "abort" : pilot.input(p);
+      }, {
         maxTicks,
         onTick: opts.onTick,
       });

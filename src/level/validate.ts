@@ -324,7 +324,7 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
   let unreachable = 0;
   let firstUnreachable: Cell | null = null;
   for (let i = 0; i < W * H; i++) {
-    if (layers.heights[i]! >= 0 && !pass.reachableFromP1[i]) {
+    if (layers.heights[i]! >= 0 && layers.surfaces[i] !== SURFACE.acid && !pass.reachableFromP1[i]) {
       unreachable++;
       firstUnreachable ??= [i % W, Math.floor(i / W)];
     }

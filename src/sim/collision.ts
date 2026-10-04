@@ -113,10 +113,12 @@ function isWallEdge(
   const bVoid = terrain.isVoid(bx, by);
   if (aVoid && bVoid) return false;
   const hb = bVoid ? null : terrain.edgeHeight(bx, by, edgeB, t, tick);
-  if (hb !== null && hb > z + WALL_STEP_THRESHOLD) return true;
+  const ha = aVoid ? null : terrain.edgeHeight(ax, ay, edgeA, t, tick);
+  // Compare against the marble's own surface at the edge, so climbing a ramp is not a step (DECISIONS M08).
+  const ref = ha !== null && ha > z ? ha : z;
+  if (hb !== null && hb > ref + WALL_STEP_THRESHOLD) return true;
   const explicit = aVoid ? terrain.isWall(bx, by, edgeB) : terrain.isWall(ax, ay, edgeA);
   if (explicit) {
-    const ha = aVoid ? hb : terrain.edgeHeight(ax, ay, edgeA, t, tick);
     const base = Math.max(ha ?? -Infinity, hb ?? -Infinity);
     if (z < base + RAIL_HEIGHT) return true;
   }
