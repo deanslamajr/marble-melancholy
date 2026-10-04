@@ -4,7 +4,12 @@ import { edgeZ, cornerZ } from "../sim/terrainMath";
 import { diag, type Diagnostic } from "./diagnostics";
 import { ENTITY_SPECS, platformSweptCells, type ParamSpec } from "./entities/specs";
 import { decodeLayers, type DecodedLayers, type LayerLines } from "./parse";
-import { analyzePassability, predictCatapultLanding, type GridData, type PassabilityResult } from "./passability";
+import {
+  analyzePassability,
+  predictCatapultLanding,
+  type GridData,
+  type PassabilityResult,
+} from "./passability";
 import {
   ENTITY_TYPES,
   MUSIC_IDS,
@@ -74,7 +79,10 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
   if (typeof source.name !== "string" || source.name.length < 1 || source.name.length > 24) {
     ds.push(diag("E016", "name must be 1–24 characters"));
   }
-  if (source.author !== undefined && (typeof source.author !== "string" || source.author.length > 32)) {
+  if (
+    source.author !== undefined &&
+    (typeof source.author !== "string" || source.author.length > 32)
+  ) {
     ds.push(diag("E016", "author must be at most 32 characters"));
   }
 
@@ -141,7 +149,9 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
     ds.push(diag("E017", `${entitiesSrc.length} entities; at most ${MAX_ENTITIES} allowed`));
   }
   if (checkpointsSrc.length > MAX_CHECKPOINTS) {
-    ds.push(diag("E017", `${checkpointsSrc.length} checkpoints; at most ${MAX_CHECKPOINTS} allowed`));
+    ds.push(
+      diag("E017", `${checkpointsSrc.length} checkpoints; at most ${MAX_CHECKPOINTS} allowed`),
+    );
   }
 
   // E001 grid
@@ -188,11 +198,20 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
       ds.push(diag("E011", `checkpoints[${i}].radius must be in 0.5..3`, { cell: c.at }));
     }
     const respawnAt = c.respawnAt ?? c.at;
-    if (!solid(c.at)) ds.push(diag("E009", `checkpoint ${i} at ${fmt(c.at)} is void`, { cell: c.at }));
+    if (!solid(c.at))
+      ds.push(diag("E009", `checkpoint ${i} at ${fmt(c.at)} is void`, { cell: c.at }));
     if (!isCell(respawnAt) || !solid(respawnAt) || acid(respawnAt)) {
-      ds.push(diag("E014", `checkpoint ${i} respawnAt ${fmt(respawnAt)} is void or acid`, { cell: respawnAt }));
+      ds.push(
+        diag("E014", `checkpoint ${i} respawnAt ${fmt(respawnAt)} is void or acid`, {
+          cell: respawnAt,
+        }),
+      );
     }
-    cps.push({ at: [c.at[0], c.at[1]], radius: round4(radius), respawnAt: [respawnAt[0], respawnAt[1]] });
+    cps.push({
+      at: [c.at[0], c.at[1]],
+      radius: round4(radius),
+      respawnAt: [respawnAt[0], respawnAt[1]],
+    });
   });
   result.checkpoints = cps;
 
@@ -207,7 +226,8 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
     ["p1", p1],
     ["p2", p2],
   ] as const) {
-    if (!isCell(c) || !solid(c)) ds.push(diag("E005", `start.${label} ${fmt(c)} is void`, { cell: c }));
+    if (!isCell(c) || !solid(c))
+      ds.push(diag("E005", `start.${label} ${fmt(c)} is void`, { cell: c }));
     else if (acid(c)) ds.push(diag("E005", `start.${label} ${fmt(c)} is acid`, { cell: c }));
     else if (hazards.has(ci(c))) {
       ds.push(diag("E005", `start.${label} ${fmt(c)} is inside a hazard footprint`, { cell: c }));
@@ -215,13 +235,15 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
   }
   const goal = source.goal;
   const goalRadius = goal.radius ?? 0.8;
-  if (!isCell(goal.at) || !solid(goal.at)) ds.push(diag("E006", `goal ${fmt(goal.at)} is void`, { cell: goal.at }));
+  if (!isCell(goal.at) || !solid(goal.at))
+    ds.push(diag("E006", `goal ${fmt(goal.at)} is void`, { cell: goal.at }));
   else if (acid(goal.at)) ds.push(diag("E006", `goal ${fmt(goal.at)} is acid`, { cell: goal.at }));
   if (!isNum(goalRadius) || goalRadius < 0.5 || goalRadius > 2) {
     ds.push(diag("E006", "goal.radius must be in 0.5..2"));
   }
   const same = (a: Cell, b: Cell) => a[0] === b[0] && a[1] === b[1];
-  if (same(p1, goal.at) || same(p2, goal.at)) ds.push(diag("E007", "a start cell equals the goal cell"));
+  if (same(p1, goal.at) || same(p2, goal.at))
+    ds.push(diag("E007", "a start cell equals the goal cell"));
   if (same(p1, p2)) ds.push(diag("E007", "start.p1 equals start.p2"));
 
   if (!entitiesOk) return finish();
@@ -233,13 +255,23 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
     const spec = ENTITY_SPECS[e.type];
     for (const c of spec.groundCells(e)) {
       if (!solid(c)) {
-        ds.push(diag("E009", `${e.type} #${e.index} needs ground at ${fmt(c)}`, { cell: c, entityIndex: e.index }));
+        ds.push(
+          diag("E009", `${e.type} #${e.index} needs ground at ${fmt(c)}`, {
+            cell: c,
+            entityIndex: e.index,
+          }),
+        );
       }
     }
     if (e.type === "platform") {
       for (const c of platformSweptCells(e.path, e.size)) {
         if (!inGrid(c)) {
-          ds.push(diag("E009", `platform #${e.index} leaves the grid at ${fmt(c)}`, { cell: c, entityIndex: e.index }));
+          ds.push(
+            diag("E009", `platform #${e.index} leaves the grid at ${fmt(c)}`, {
+              cell: c,
+              entityIndex: e.index,
+            }),
+          );
           continue;
         }
         const h = layers.heights[ci(c)]!;
@@ -247,16 +279,25 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
         const maxZ = Math.max(...cornerZ(h, layers.slopes[ci(c)]!));
         if (maxZ > e.top * 0.5 - 1.0 + 1e-9) {
           ds.push(
-            diag("E009", `platform #${e.index} footprint ${fmt(c)} must be void or ≥ 1.0 below its top`, {
-              cell: c,
-              entityIndex: e.index,
-            }),
+            diag(
+              "E009",
+              `platform #${e.index} footprint ${fmt(c)} must be void or ≥ 1.0 below its top`,
+              {
+                cell: c,
+                entityIndex: e.index,
+              },
+            ),
           );
         }
       }
     }
     if ((e.type === "pipe" || e.type === "funnel") && !solid(e.exit)) {
-      ds.push(diag("E013", `${e.type} #${e.index} exit ${fmt(e.exit)} is void`, { cell: e.exit, entityIndex: e.index }));
+      ds.push(
+        diag("E013", `${e.type} #${e.index} exit ${fmt(e.exit)} is void`, {
+          cell: e.exit,
+          entityIndex: e.index,
+        }),
+      );
     }
     if (e.type !== "wave") {
       const seen = new Set<number>();
@@ -295,7 +336,12 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
     if (e.type !== "catapult") continue;
     const land = predictCatapultLanding(grid, e.at, e.launch);
     if (!land) {
-      ds.push(diag("E013", `catapult #${e.index} predicted landing is void`, { cell: e.at, entityIndex: e.index }));
+      ds.push(
+        diag("E013", `catapult #${e.index} predicted landing is void`, {
+          cell: e.at,
+          entityIndex: e.index,
+        }),
+      );
     }
   }
 
@@ -315,25 +361,37 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
         }
       }
       ds.push(
-        diag("E008", `goal unreachable from start ${label} ${fmt(c)}; farthest reachable cell ${fmt(far)}`, {
-          cell: far,
-        }),
+        diag(
+          "E008",
+          `goal unreachable from start ${label} ${fmt(c)}; farthest reachable cell ${fmt(far)}`,
+          {
+            cell: far,
+          },
+        ),
       );
     }
   }
   let unreachable = 0;
   let firstUnreachable: Cell | null = null;
   for (let i = 0; i < W * H; i++) {
-    if (layers.heights[i]! >= 0 && layers.surfaces[i] !== SURFACE.acid && !pass.reachableFromP1[i]) {
+    if (
+      layers.heights[i]! >= 0 &&
+      layers.surfaces[i] !== SURFACE.acid &&
+      !pass.reachableFromP1[i]
+    ) {
       unreachable++;
       firstUnreachable ??= [i % W, Math.floor(i / W)];
     }
   }
   if (unreachable > 0 && firstUnreachable) {
     ds.push(
-      diag("W101", `${unreachable} non-void cells unreachable from start; first ${fmt(firstUnreachable)}`, {
-        cell: firstUnreachable,
-      }),
+      diag(
+        "W101",
+        `${unreachable} non-void cells unreachable from start; first ${fmt(firstUnreachable)}`,
+        {
+          cell: firstUnreachable,
+        },
+      ),
     );
   }
 
@@ -353,7 +411,11 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
       const low = edgeZ(layers.heights[i]!, s, edge, 0.5);
       const nb = edgeZ(layers.heights[j]!, layers.slopes[j]!, (edge + 2) % 4, 0.5);
       if (nb > low + 0.001) {
-        ds.push(diag("W104", `slope at (${x},${y}) runs into a higher neighbour (${nx},${ny})`, { cell: [x, y] }));
+        ds.push(
+          diag("W104", `slope at (${x},${y}) runs into a higher neighbour (${nx},${ny})`, {
+            cell: [x, y],
+          }),
+        );
       }
     }
   }
@@ -375,7 +437,12 @@ export function analyzeSource(source: LevelSource, layerLines: LayerLines = {}):
       }
     }
     if (!touches) {
-      ds.push(diag("W106", `${e.type} #${e.index} never touches a reachable cell`, { cell: cells[0]!, entityIndex: e.index }));
+      ds.push(
+        diag("W106", `${e.type} #${e.index} never touches a reachable cell`, {
+          cell: cells[0]!,
+          entityIndex: e.index,
+        }),
+      );
     }
   }
 
@@ -390,7 +457,11 @@ export function resolveEntity(
 ): CompiledEntity | null {
   const type = raw.type as EntityType;
   if (!ENTITY_TYPES.includes(type)) {
-    ds.push(diag("E012", `entity #${index}: unknown type ${JSON.stringify(raw.type)}`, { entityIndex: index }));
+    ds.push(
+      diag("E012", `entity #${index}: unknown type ${JSON.stringify(raw.type)}`, {
+        entityIndex: index,
+      }),
+    );
     return null;
   }
   const spec = ENTITY_SPECS[type];
@@ -418,7 +489,11 @@ export function resolveEntity(
     const [lx, ly, lz] = out.launch as number[];
     const h = Math.sqrt(lx! * lx! + ly! * ly!);
     if (h < 1 || h > 14 || lz! < 2 || lz! > 12) {
-      ds.push(diag("E011", `catapult #${index}: launch |dx,dy| must be 1..14 and dz 2..12`, { entityIndex: index }));
+      ds.push(
+        diag("E011", `catapult #${index}: launch |dx,dy| must be 1..14 and dz 2..12`, {
+          entityIndex: index,
+        }),
+      );
       return null;
     }
   }
@@ -432,7 +507,11 @@ export function resolveEntity(
     out.dir = [round4(d[0]! / l), round4(d[1]! / l)];
     const r = out.rect as number[];
     if (r[0]! > r[2]! || r[1]! > r[3]!) {
-      ds.push(diag("E011", `wave #${index}: rect must be [x0, y0, x1, y1] with x0 ≤ x1, y0 ≤ y1`, { entityIndex: index }));
+      ds.push(
+        diag("E011", `wave #${index}: rect must be [x0, y0, x1, y1] with x0 ≤ x1, y0 ≤ y1`, {
+          entityIndex: index,
+        }),
+      );
       return null;
     }
   }
@@ -468,7 +547,8 @@ function resolveParam(
       if (!isInt(v) || !range(v)) return err(`must be an integer in ${p.min}..${p.max}`);
       return v;
     case "enum":
-      if (typeof v !== "string" || !p.options?.includes(v)) return err(`must be one of ${p.options?.join(", ")}`);
+      if (typeof v !== "string" || !p.options?.includes(v))
+        return err(`must be one of ${p.options?.join(", ")}`);
       return v;
     case "cell":
       if (!isCell(v)) return err("must be a cell [x, y]");
@@ -481,17 +561,24 @@ function resolveParam(
       return v.map((c: Cell) => [c[0], c[1]]);
     }
     case "vec3":
-      if (!Array.isArray(v) || v.length !== 3 || !v.every(isNum)) return err("must be [dx, dy, dz]");
+      if (!Array.isArray(v) || v.length !== 3 || !v.every(isNum))
+        return err("must be [dx, dy, dz]");
       if (!v.every((n: number) => range(n))) return err(`components must be in ${p.min}..${p.max}`);
       return v.map((n: number) => round4(n));
     case "vec2":
       if (!Array.isArray(v) || v.length !== 2 || !v.every(isNum)) return err("must be [x, y]");
       return v.map((n: number) => round4(n));
     case "rect":
-      if (!Array.isArray(v) || v.length !== 4 || !v.every(isInt)) return err("must be [x0, y0, x1, y1]");
+      if (!Array.isArray(v) || v.length !== 4 || !v.every(isInt))
+        return err("must be [x0, y0, x1, y1]");
       return [...v];
     case "size":
-      if (!Array.isArray(v) || v.length !== 2 || !v.every(isInt) || !v.every((n: number) => range(n))) {
+      if (
+        !Array.isArray(v) ||
+        v.length !== 2 ||
+        !v.every(isInt) ||
+        !v.every((n: number) => range(n))
+      ) {
         return err(`must be [w, h] with each in ${p.min}..${p.max}`);
       }
       return [...v];

@@ -50,7 +50,11 @@ export async function infoCommand(file: string, o: OutOpts): Promise<number> {
       `id        ${info.id}${info.course ? ` (course slot ${info.course.slot})` : ""}`,
       `name      ${info.name}${info.author ? ` by ${info.author}` : ""}`,
       `grid      ${level.grid.width}×${level.grid.height}, ${cells} cells`,
-      `entities  ${Object.entries(byType).map(([k, v]) => `${k}×${v}`).join(" ") || "none"}`,
+      `entities  ${
+        Object.entries(byType)
+          .map(([k, v]) => `${k}×${v}`)
+          .join(" ") || "none"
+      }`,
       `timing    limit ${level.timing.timeLimit}s, par ${level.timing.par}s, bonus ${level.timing.timeBonus}s`,
       `solution  ${solution ? `${solution.ticks} ticks (${(solution.ticks / 120).toFixed(2)} s), ${solution.deaths} deaths` : "(source; not compiled)"}`,
       `stamp     ${stamp ? JSON.stringify(stamp) : "none"}`,

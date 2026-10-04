@@ -85,7 +85,8 @@ export class Autopilot {
       desX = 0;
       desY = 0;
     } else {
-      const s = INPUT_MAX_SPEED * (wp.speed ?? DEFAULT_WP_SPEED) * (isLast ? Math.min(1, dist / 1.5) : 1);
+      const s =
+        INPUT_MAX_SPEED * (wp.speed ?? DEFAULT_WP_SPEED) * (isLast ? Math.min(1, dist / 1.5) : 1);
       desX = (dx / dist) * s;
       desY = (dy / dist) * s;
     }

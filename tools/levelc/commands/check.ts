@@ -37,11 +37,18 @@ export async function checkCommand(inputs: string[], o: CheckOpts): Promise<numb
     }
     const lvl = rep.level!;
     if (basename(f) !== `${lvl.id}.level.json`) {
-      printLine(o, fail(o, `${shown}: file name does not match id ${lvl.id}`), { file: shown, error: "filename" });
+      printLine(o, fail(o, `${shown}: file name does not match id ${lvl.id}`), {
+        file: shown,
+        error: "filename",
+      });
       code = Math.max(code, 1);
     }
     levels.set(`${basename(dirname(f))}/${lvl.id}`, { level: lvl, path: f });
-    printLine(o, `${ok(o, "OK")} ${shown} (${lvl.id}, ${lvl.solution.ticks} ticks)`, { file: shown, ok: true, id: lvl.id });
+    printLine(o, `${ok(o, "OK")} ${shown} (${lvl.id}, ${lvl.solution.ticks} ticks)`, {
+      file: shown,
+      ok: true,
+      id: lvl.id,
+    });
   }
 
   for (const input of inputs) {
@@ -51,7 +58,10 @@ export async function checkCommand(inputs: string[], o: CheckOpts): Promise<numb
     if (!existsSync(mpath)) continue;
     const m = ManifestSchema.safeParse(readJson(mpath));
     if (!m.success) {
-      printLine(o, fail(o, `${display(mpath)}: invalid manifest`), { file: display(mpath), error: "manifest schema" });
+      printLine(o, fail(o, `${display(mpath)}: invalid manifest`), {
+        file: display(mpath),
+        error: "manifest schema",
+      });
       code = Math.max(code, 1);
       continue;
     }
@@ -59,15 +69,20 @@ export async function checkCommand(inputs: string[], o: CheckOpts): Promise<numb
     m.data.course.forEach((id, i) => {
       const e = levels.get(`core/${id}`);
       if (!e) problems.push(`course id ${id} has no compiled file in core/`);
-      else if (e.level.course?.slot !== i + 1) problems.push(`course[${i}] ${id} has slot ${e.level.course?.slot}`);
+      else if (e.level.course?.slot !== i + 1)
+        problems.push(`course[${i}] ${id} has slot ${e.level.course?.slot}`);
     });
-    for (const id of m.data.fixtures) if (!levels.has(`fixtures/${id}`)) problems.push(`fixture ${id} missing`);
+    for (const id of m.data.fixtures)
+      if (!levels.has(`fixtures/${id}`)) problems.push(`fixture ${id} missing`);
     for (const key of levels.keys()) {
       const [dir, id] = key.split("/") as [string, string];
-      if (dir === "core" && !m.data.course.includes(id)) problems.push(`core/${id} not listed in manifest`);
-      if (dir === "fixtures" && !m.data.fixtures.includes(id)) problems.push(`fixtures/${id} not listed in manifest`);
+      if (dir === "core" && !m.data.course.includes(id))
+        problems.push(`core/${id} not listed in manifest`);
+      if (dir === "fixtures" && !m.data.fixtures.includes(id))
+        problems.push(`fixtures/${id} not listed in manifest`);
     }
-    for (const pr of problems) printLine(o, fail(o, `${display(mpath)}: ${pr}`), { file: display(mpath), error: pr });
+    for (const pr of problems)
+      printLine(o, fail(o, `${display(mpath)}: ${pr}`), { file: display(mpath), error: pr });
     if (problems.length > 0) code = Math.max(code, 1);
     else printLine(o, `${ok(o, "OK")} ${display(mpath)}`, { file: display(mpath), ok: true });
   }

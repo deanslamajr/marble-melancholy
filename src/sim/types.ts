@@ -16,16 +16,11 @@ export interface InputFrame {
 
 export const ZERO_INPUT: InputFrame = Object.freeze({ ax: 0, ay: 0 });
 
-export type DeathCause = "fall" | "shatter" | "acid" | "munch" | "hammer" | "hoover" | "left-behind";
+export type DeathCause =
+  "fall" | "shatter" | "acid" | "munch" | "hammer" | "hoover" | "left-behind";
 
 export type MarbleStatus =
-  | "alive"
-  | "dying"
-  | "waiting"
-  | "transit"
-  | "windup"
-  | "finished"
-  | "eliminated";
+  "alive" | "dying" | "waiting" | "transit" | "windup" | "finished" | "eliminated";
 
 export interface MarbleState {
   x: number;

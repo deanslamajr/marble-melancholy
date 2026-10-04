@@ -6,10 +6,10 @@ export interface OutOpts {
   color?: boolean;
 }
 
-const useColor = (o: OutOpts) => o.color !== false && process.stdout.isTTY && !o.json;
+const colorOn = (o: OutOpts) => o.color !== false && process.stdout.isTTY && !o.json;
 
 function paint(o: OutOpts, code: number, s: string): string {
-  return useColor(o) ? `\x1b[${code}m${s}\x1b[0m` : s;
+  return colorOn(o) ? `\x1b[${code}m${s}\x1b[0m` : s;
 }
 
 export function printDiagnostics(diags: readonly Diagnostic[], file: string, o: OutOpts): void {

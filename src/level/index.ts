@@ -1,5 +1,12 @@
 // Public level-builder API (§6.4). Used by the CLI, the GUI builder and the loader.
-export { parseSource, sourceFromObject, decodeLayers, encodeLayers, type ParseResult, type LayerLines } from "./parse";
+export {
+  parseSource,
+  sourceFromObject,
+  decodeLayers,
+  encodeLayers,
+  type ParseResult,
+  type LayerLines,
+} from "./parse";
 export { serializeSource } from "./serialize";
 export { validateSource, analyzeSource, type ValidationReport } from "./validate";
 export { solveSolution, type SolveResult } from "./solution/solve";

@@ -47,24 +47,25 @@ export function solveSolution(
   switch (spec.kind) {
     case "waypoints": {
       let current: RaceSim | null = null;
-      const pilot = new Autopilot(
-        spec.points,
-        (x, y) => {
-          if (!current) return "static";
-          const g = current.terrain.groundAt(x, y, current.tick);
-          return g === null ? "none" : g.carrier ? "carrier" : "static";
-        },
-      );
+      const pilot = new Autopilot(spec.points, (x, y) => {
+        if (!current) return "static";
+        const g = current.terrain.groundAt(x, y, current.tick);
+        return g === null ? "none" : g.carrier ? "carrier" : "static";
+      });
       ap = pilot;
       opts.onAutopilot?.(pilot);
       const maxTicks = Math.min(spec.maxTicks ?? limit, limit);
-      result = runInputs(level, (sim, p) => {
-        current = sim;
-        return pilot.failed ? "abort" : pilot.input(p);
-      }, {
-        maxTicks,
-        onTick: opts.onTick,
-      });
+      result = runInputs(
+        level,
+        (sim, p) => {
+          current = sim;
+          return pilot.failed ? "abort" : pilot.input(p);
+        },
+        {
+          maxTicks,
+          onTick: opts.onTick,
+        },
+      );
       break;
     }
     case "script": {
@@ -99,7 +100,8 @@ export function solveSolution(
   }
   let reason: SolveFailReason = "timeout";
   if (result.end === "abort") reason = "waypoint-unreached";
-  else if (result.end === "source-ended") reason = spec.kind === "replay" ? "replay-ended" : "script-ended";
+  else if (result.end === "source-ended")
+    reason = spec.kind === "replay" ? "replay-ended" : "script-ended";
   return {
     ok: false,
     reason,

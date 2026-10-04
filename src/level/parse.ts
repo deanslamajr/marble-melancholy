@@ -57,7 +57,9 @@ export function sourceFromObject(raw: unknown, layerLines: LayerLines = {}): Par
   if (fmt !== "mm-level-source/1") {
     return {
       ok: false,
-      diagnostics: [diag("E021", `unsupported format ${JSON.stringify(fmt)}; expected "mm-level-source/1"`)],
+      diagnostics: [
+        diag("E021", `unsupported format ${JSON.stringify(fmt)}; expected "mm-level-source/1"`),
+      ],
     };
   }
   const r = LevelSourceShapeSchema.safeParse(raw);
@@ -220,12 +222,16 @@ export function decodeLayers(
         }
         if (v === null || v === undefined) {
           diags.push(
-            diag("E003", `invalid character ${JSON.stringify(c)} in layer ${name} at row ${y}, col ${x}`, {
-              layer: name,
-              line,
-              col: x + 1,
-              cell: [x, y],
-            }),
+            diag(
+              "E003",
+              `invalid character ${JSON.stringify(c)} in layer ${name} at row ${y}, col ${x}`,
+              {
+                layer: name,
+                line,
+                col: x + 1,
+                cell: [x, y],
+              },
+            ),
           );
           continue;
         }
@@ -243,7 +249,9 @@ export function decodeLayers(
       ["walls", out.walls],
     ] as const) {
       if (arr[i]! !== 0) {
-        diags.push(diag("E004", `${name} set on void cell (${x},${y})`, { layer: name, cell: [x, y] }));
+        diags.push(
+          diag("E004", `${name} set on void cell (${x},${y})`, { layer: name, cell: [x, y] }),
+        );
       }
     }
   }

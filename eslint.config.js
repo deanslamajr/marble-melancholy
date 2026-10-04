@@ -1,8 +1,28 @@
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
-const BANNED_MATH = ["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "exp", "expm1", "log",
-  "log2", "log10", "log1p", "pow", "hypot", "cbrt", "random", "sinh", "cosh", "tanh"];
+const BANNED_MATH = [
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "atan2",
+  "exp",
+  "expm1",
+  "log",
+  "log2",
+  "log10",
+  "log1p",
+  "pow",
+  "hypot",
+  "cbrt",
+  "random",
+  "sinh",
+  "cosh",
+  "tanh",
+];
 
 const determinismProperties = [
   ...BANNED_MATH.map((property) => ({
@@ -11,7 +31,11 @@ const determinismProperties = [
     message: "Non-deterministic across engines; use src/core/dmath.ts (D06).",
   })),
   { object: "Date", property: "now", message: "The simulation never reads the clock (§7.1)." },
-  { object: "performance", property: "now", message: "The simulation never reads the clock (§7.1)." },
+  {
+    object: "performance",
+    property: "now",
+    message: "The simulation never reads the clock (§7.1).",
+  },
 ];
 
 const determinismSyntax = [
@@ -38,7 +62,17 @@ const pureLayerImports = {
   patterns: [
     ...levelDataImports.patterns,
     {
-      group: ["**/render/**", "**/ui/**", "**/audio/**", "**/input/**", "**/game/**", "**/builder/**", "preact", "preact/*", "@preact/*"],
+      group: [
+        "**/render/**",
+        "**/ui/**",
+        "**/audio/**",
+        "**/input/**",
+        "**/game/**",
+        "**/builder/**",
+        "preact",
+        "preact/*",
+        "@preact/*",
+      ],
       message: "src/core, src/sim and src/level must stay pure (§3.2).",
     },
   ],

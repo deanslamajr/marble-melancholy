@@ -148,9 +148,7 @@ export const SolutionSourceSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("script"),
-      segments: z
-        .array(z.object({ ticks: int.min(1), dir: Vec2Schema }).strict())
-        .min(1),
+      segments: z.array(z.object({ ticks: int.min(1), dir: Vec2Schema }).strict()).min(1),
     })
     .strict(),
   z
@@ -190,9 +188,7 @@ export const LevelSourceSchema = z
     goal: z.object({ at: CellSchema, radius: z.number().optional() }).strict(),
     checkpoints: z.array(CheckpointSourceSchema).optional(),
     entities: z.array(EntitySourceSchema).optional(),
-    timing: z
-      .object({ timeLimit: int, par: int, timeBonus: int.optional() })
-      .strict(),
+    timing: z.object({ timeLimit: int, par: int, timeBonus: int.optional() }).strict(),
     scoring: z
       .object({
         progress: int.min(0).optional(),
@@ -239,7 +235,10 @@ const ResolvedThemeSchema = z
   .strict();
 
 const withIndex = <T extends z.ZodRawShape>(o: z.ZodObject<T>) =>
-  o.extend({ index: int.min(0) }).required().strict();
+  o
+    .extend({ index: int.min(0) })
+    .required()
+    .strict();
 
 export const CompiledEntitySchema = z.discriminatedUnion("type", [
   withIndex(steelie),
@@ -259,7 +258,10 @@ export const CompiledLevelSchema = z
     id: z.string().regex(/^[a-z0-9][a-z0-9-]{1,47}$/),
     name: z.string().min(1).max(24),
     author: z.string().max(32),
-    course: z.object({ slot: int.min(1).max(6) }).strict().nullable(),
+    course: z
+      .object({ slot: int.min(1).max(6) })
+      .strict()
+      .nullable(),
     theme: ResolvedThemeSchema,
     music: MusicIdSchema,
     seed: int.min(0).max(0xffffffff),
@@ -280,9 +282,7 @@ export const CompiledLevelSchema = z
     ),
     entities: z.array(CompiledEntitySchema),
     timing: z.object({ timeLimit: int, par: int, timeBonus: int }).strict(),
-    scoring: z
-      .object({ progress: int, goal: int, perSecond: int, firstHome: int })
-      .strict(),
+    scoring: z.object({ progress: int, goal: int, perSecond: int, firstHome: int }).strict(),
     physics: z
       .object({ slopeGravityScale: z.number(), frictionScale: z.number(), inputScale: z.number() })
       .strict(),

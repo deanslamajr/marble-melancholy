@@ -23,7 +23,14 @@ export async function testplayCommand(file: string, o: TestplayOpts): Promise<nu
     printLine(
       o,
       `GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s deaths=${s.deaths} par=${r.par} hash=${s.stateHash}`,
-      { ok: true, ticks: s.ticks, time: s.ticks / 120, deaths: s.deaths, par: r.par, stateHash: s.stateHash },
+      {
+        ok: true,
+        ticks: s.ticks,
+        time: s.ticks / 120,
+        deaths: s.deaths,
+        par: r.par,
+        stateHash: s.stateHash,
+      },
     );
     return 0;
   }

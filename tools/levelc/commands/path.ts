@@ -25,7 +25,10 @@ export async function pathCommand(file: string, o: PathOpts): Promise<number> {
   const W = lvl.grid.width;
   const H = lvl.grid.height;
   const layers = encodeLayers(W, H, lvl.cells);
-  const rows = layers[layerName].split("\n").slice(0, H).map((row) => row.split(""));
+  const rows = layers[layerName]
+    .split("\n")
+    .slice(0, H)
+    .map((row) => row.split(""));
   const s = r.solution ? solveSolution(lvl, r.solution) : null;
   if (s) {
     for (const [x, y] of s.path) if (rows[y]?.[x] !== undefined) rows[y]![x] = "*";
@@ -36,8 +39,15 @@ export async function pathCommand(file: string, o: PathOpts): Promise<number> {
   if (rows[p1[1]]?.[p1[0]] !== undefined) rows[p1[1]]![p1[0]] = "S";
   if (rows[g[1]]?.[g[0]] !== undefined) rows[g[1]]![g[0]] = "G";
   const text = rows.map((row) => row.join("")).join("\n");
-  printLine(o, text, { layer: layerName, rows: rows.map((row) => row.join("")), ok: s?.ok ?? false });
+  printLine(o, text, {
+    layer: layerName,
+    rows: rows.map((row) => row.join("")),
+    ok: s?.ok ?? false,
+  });
   if (!s) return 2;
-  printLine(o, s.ok ? `GOAL tick=${s.ticks} deaths=${s.deaths}` : `FAIL reason=${s.reason} at tick=${s.tick}`);
+  printLine(
+    o,
+    s.ok ? `GOAL tick=${s.ticks} deaths=${s.deaths}` : `FAIL reason=${s.reason} at tick=${s.tick}`,
+  );
   return s.ok ? 0 : 2;
 }

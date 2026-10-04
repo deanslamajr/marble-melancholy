@@ -53,15 +53,29 @@ export function serializeSource(source: LevelSource): string {
     Map(_key, node, path) {
       const parent = path[path.length - 1];
       if (!isSeq(parent)) {
-        const allScalar = node.items.every((p) => isScalar(p.value) || (isSeq(p.value) && p.value.items.every(isScalar)));
-        if (allScalar && node.items.length <= 4 && !node.items.some((p) => isScalar(p.value) && typeof p.value.value === "string" && p.value.value.includes("\n"))) {
+        const allScalar = node.items.every(
+          (p) => isScalar(p.value) || (isSeq(p.value) && p.value.items.every(isScalar)),
+        );
+        if (
+          allScalar &&
+          node.items.length <= 4 &&
+          !node.items.some(
+            (p) =>
+              isScalar(p.value) &&
+              typeof p.value.value === "string" &&
+              p.value.value.includes("\n"),
+          )
+        ) {
           const k = isScalar(_key) ? String(_key.value) : String(_key);
-          if (k === "grid" || k === "start" || k === "goal" || k === "timing" || k === "course") node.flow = true;
+          if (k === "grid" || k === "start" || k === "goal" || k === "timing" || k === "course")
+            node.flow = true;
         }
         return;
       }
       node.flow = node.items.every(
-        (p) => isScalar(p.value) || (isSeq(p.value) && p.value.items.every((i) => isScalar(i) || isSeq(i))),
+        (p) =>
+          isScalar(p.value) ||
+          (isSeq(p.value) && p.value.items.every((i) => isScalar(i) || isSeq(i))),
       );
       if (node.flow) {
         visit(node, {

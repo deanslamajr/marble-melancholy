@@ -1,7 +1,8 @@
 // ENTITY_SPECS registry: params, defaults, ranges, footprints (§5.3 table).
 import type { Cell, EntitySource, EntityType, Rect } from "../types";
 
-export type ParamKind = "number" | "int" | "cell" | "path" | "vec3" | "vec2" | "rect" | "size" | "enum";
+export type ParamKind =
+  "number" | "int" | "cell" | "path" | "vec3" | "vec2" | "rect" | "size" | "enum";
 
 export interface ParamSpec {
   key: string;
@@ -30,7 +31,12 @@ export interface EntitySpec {
   groundCells(e: EntitySource): Cell[];
 }
 
-const cell = (key: string, label: string): ParamSpec => ({ key, label, kind: "cell", required: true });
+const cell = (key: string, label: string): ParamSpec => ({
+  key,
+  label,
+  kind: "cell",
+  required: true,
+});
 
 function pathCells(e: { at: Cell; path?: Cell[] }): Cell[] {
   return [e.at, ...(e.path ?? [])];
@@ -81,7 +87,15 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
       { key: "mode", label: "Mode", kind: "enum", options: ["patrol", "hunt"], default: "patrol" },
       { key: "path", label: "Path", kind: "path", default: "at", minItems: 1, maxItems: 16 },
       { key: "speed", label: "Speed", kind: "number", default: 3.5, min: 0.5, max: 8, step: 0.1 },
-      { key: "aggroRadius", label: "Aggro radius", kind: "number", default: 5, min: 1, max: 12, step: 0.1 },
+      {
+        key: "aggroRadius",
+        label: "Aggro radius",
+        kind: "number",
+        default: 5,
+        min: 1,
+        max: 12,
+        step: 0.1,
+      },
     ],
     footprint: (e) => pathCells(e as { at: Cell; path?: Cell[] }),
     groundCells: (e) => pathCells(e as { at: Cell; path?: Cell[] }),
@@ -92,10 +106,26 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
     glyph: "M",
     params: [
       cell("at", "Body"),
-      { key: "triggerRadius", label: "Trigger radius", kind: "number", default: 1.3, min: 0.5, max: 3, step: 0.1 },
+      {
+        key: "triggerRadius",
+        label: "Trigger radius",
+        kind: "number",
+        default: 1.3,
+        min: 0.5,
+        max: 3,
+        step: 0.1,
+      },
       { key: "path", label: "Path", kind: "path", default: "at", minItems: 1, maxItems: 16 },
       { key: "speed", label: "Speed", kind: "number", default: 1.5, min: 0, max: 3, step: 0.1 },
-      { key: "digestTime", label: "Digest time", kind: "number", default: 1.5, min: 0.5, max: 4, step: 0.1 },
+      {
+        key: "digestTime",
+        label: "Digest time",
+        kind: "number",
+        default: 1.5,
+        min: 0.5,
+        max: 4,
+        step: 0.1,
+      },
     ],
     footprint: (e) => pathCells(e as { at: Cell; path?: Cell[] }),
     groundCells: (e) => pathCells(e as { at: Cell; path?: Cell[] }),
@@ -106,9 +136,33 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
     glyph: "H",
     params: [
       cell("at", "Nozzle"),
-      { key: "pullRadius", label: "Pull radius", kind: "number", default: 3.0, min: 1, max: 6, step: 0.1 },
-      { key: "pullStrength", label: "Pull strength", kind: "number", default: 14, min: 2, max: 30, step: 0.5 },
-      { key: "killRadius", label: "Kill radius", kind: "number", default: 0.4, min: 0.2, max: 0.8, step: 0.05 },
+      {
+        key: "pullRadius",
+        label: "Pull radius",
+        kind: "number",
+        default: 3.0,
+        min: 1,
+        max: 6,
+        step: 0.1,
+      },
+      {
+        key: "pullStrength",
+        label: "Pull strength",
+        kind: "number",
+        default: 14,
+        min: 2,
+        max: 30,
+        step: 0.5,
+      },
+      {
+        key: "killRadius",
+        label: "Kill radius",
+        kind: "number",
+        default: 0.4,
+        min: 0.2,
+        max: 0.8,
+        step: 0.05,
+      },
       { key: "onTime", label: "On time", kind: "number", default: 0, min: 0, max: 10, step: 0.1 },
       { key: "offTime", label: "Off time", kind: "number", default: 0, min: 0, max: 10, step: 0.1 },
       { key: "phase", label: "Phase", kind: "number", default: 0, min: 0, max: 10, step: 0.1 },
@@ -135,7 +189,15 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
     params: [
       cell("at", "Pad"),
       { key: "launch", label: "Launch velocity", kind: "vec3", required: true },
-      { key: "windup", label: "Windup", kind: "number", default: 0.3, min: 0.1, max: 1, step: 0.05 },
+      {
+        key: "windup",
+        label: "Windup",
+        kind: "number",
+        default: 0.3,
+        min: 0.1,
+        max: 1,
+        step: 0.05,
+      },
     ],
     footprint: (e) => [(e as { at: Cell }).at],
     groundCells: (e) => [(e as { at: Cell }).at],
@@ -146,8 +208,24 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
     glyph: "~",
     params: [
       { key: "rect", label: "Region", kind: "rect", required: true },
-      { key: "amplitude", label: "Amplitude", kind: "number", default: 0.35, min: 0.05, max: 1, step: 0.05 },
-      { key: "wavelength", label: "Wavelength", kind: "number", default: 3.5, min: 1, max: 10, step: 0.1 },
+      {
+        key: "amplitude",
+        label: "Amplitude",
+        kind: "number",
+        default: 0.35,
+        min: 0.05,
+        max: 1,
+        step: 0.05,
+      },
+      {
+        key: "wavelength",
+        label: "Wavelength",
+        kind: "number",
+        default: 3.5,
+        min: 1,
+        max: 10,
+        step: 0.1,
+      },
       { key: "speed", label: "Speed", kind: "number", default: 2, min: 0, max: 5, step: 0.1 },
       { key: "dir", label: "Direction", kind: "vec2", default: [1, 0] },
     ],
@@ -161,7 +239,15 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
     params: [
       cell("at", "Origin"),
       { key: "size", label: "Size", kind: "size", default: [2, 2], min: 1, max: 4 },
-      { key: "top", label: "Top (half-units)", kind: "int", required: true, min: 0, max: 35, step: 1 },
+      {
+        key: "top",
+        label: "Top (half-units)",
+        kind: "int",
+        required: true,
+        min: 0,
+        max: 35,
+        step: 1,
+      },
       { key: "path", label: "Path", kind: "path", required: true, minItems: 2, maxItems: 8 },
       { key: "speed", label: "Speed", kind: "number", default: 2, min: 0.5, max: 6, step: 0.1 },
       { key: "pause", label: "Pause", kind: "number", default: 1, min: 0, max: 3, step: 0.1 },
@@ -180,8 +266,23 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
     params: [
       cell("entry", "Entry"),
       cell("exit", "Exit"),
-      { key: "exitVelocity", label: "Exit velocity", kind: "vec3", default: [0, 2, 0], min: -12, max: 12 },
-      { key: "travelTime", label: "Travel time", kind: "number", default: 1.2, min: 0.3, max: 4, step: 0.1 },
+      {
+        key: "exitVelocity",
+        label: "Exit velocity",
+        kind: "vec3",
+        default: [0, 2, 0],
+        min: -12,
+        max: 12,
+      },
+      {
+        key: "travelTime",
+        label: "Travel time",
+        kind: "number",
+        default: 1.2,
+        min: 0.3,
+        max: 4,
+        step: 0.1,
+      },
     ],
     footprint: (e) => [(e as { entry: Cell }).entry, (e as { exit: Cell }).exit],
     groundCells: (e) => [(e as { entry: Cell }).entry],
@@ -195,8 +296,23 @@ export const ENTITY_SPECS: Record<EntityType, EntitySpec> = {
       { key: "radius", label: "Radius", kind: "number", default: 2.5, min: 1, max: 5, step: 0.1 },
       { key: "depth", label: "Depth", kind: "number", default: 1.5, min: 0.5, max: 3, step: 0.1 },
       cell("exit", "Exit"),
-      { key: "exitVelocity", label: "Exit velocity", kind: "vec3", default: [0, 2, 0], min: -12, max: 12 },
-      { key: "travelTime", label: "Travel time", kind: "number", default: 1.0, min: 0.3, max: 4, step: 0.1 },
+      {
+        key: "exitVelocity",
+        label: "Exit velocity",
+        kind: "vec3",
+        default: [0, 2, 0],
+        min: -12,
+        max: 12,
+      },
+      {
+        key: "travelTime",
+        label: "Travel time",
+        kind: "number",
+        default: 1.0,
+        min: 0.3,
+        max: 4,
+        step: 0.1,
+      },
     ],
     footprint: (e) => {
       const f = e as { at: Cell; radius?: number; exit: Cell };
@@ -229,7 +345,15 @@ export function defaultEntity(type: EntityType, at: Cell): EntitySource {
     case "wave":
       return { type, rect: [x, y, x + 3, y + 3] as Rect };
     case "platform":
-      return { type, at: [x, y], top: 10, path: [[x, y], [x + 3, y]] };
+      return {
+        type,
+        at: [x, y],
+        top: 10,
+        path: [
+          [x, y],
+          [x + 3, y],
+        ],
+      };
     case "pipe":
       return { type, entry: [x, y], exit: [x + 2, y + 2] };
     case "funnel":

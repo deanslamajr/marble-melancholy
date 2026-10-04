@@ -27,7 +27,12 @@ export async function validateCommand(srcs: string[], o: ValidateOpts): Promise<
     printDiagnostics([...rep.errors, ...rep.warnings], shown, o);
     const failed = rep.errors.length > 0 || (o.warningsAsErrors && rep.warnings.length > 0);
     if (failed) code = Math.max(code, 1);
-    else printLine(o, `${shown}: OK (${rep.warnings.length} warnings)`, { file: shown, ok: true, warnings: rep.warnings.length });
+    else
+      printLine(o, `${shown}: OK (${rep.warnings.length} warnings)`, {
+        file: shown,
+        ok: true,
+        warnings: rep.warnings.length,
+      });
   }
   return code;
 }

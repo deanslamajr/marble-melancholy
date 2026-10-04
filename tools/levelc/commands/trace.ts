@@ -42,32 +42,52 @@ export async function traceCommand(file: string, o: TraceOpts): Promise<number> 
         printLine(
           o,
           `t=${t} pos=(${f2(m.x)},${f2(m.y)},${f2(m.z)}) vel=(${f2(m.vx)},${f2(m.vy)},${f2(m.vz)}) ground=${m.grounded ? 1 : 0} cell=(${Math.floor(m.x)},${Math.floor(m.y)}) surf=${g?.surface ?? "void"} status=${m.status} wp=${wp} ev=${evs.map((e) => e.t).join(",")}`,
-          { t: tick, pos: [m.x, m.y, m.z], vel: [m.vx, m.vy, m.vz], grounded: m.grounded, status: m.status, wp, events: evs },
+          {
+            t: tick,
+            pos: [m.x, m.y, m.z],
+            vel: [m.vx, m.vy, m.vz],
+            grounded: m.grounded,
+            status: m.status,
+            wp,
+            events: evs,
+          },
         );
       }
       for (const e of evs) {
         if (tick % every === 0) continue;
-        const extra = e.t === "death" ? ` cause=${e.cause} pos=(${f2(e.x)},${f2(e.y)},${f2(e.z)})` : "";
-        printLine(o, `t=${String(tick).padStart(4, "0")} event=${e.t}${extra}`, { t: tick, event: e });
+        const extra =
+          e.t === "death" ? ` cause=${e.cause} pos=(${f2(e.x)},${f2(e.y)},${f2(e.z)})` : "";
+        printLine(o, `t=${String(tick).padStart(4, "0")} event=${e.t}${extra}`, {
+          t: tick,
+          event: e,
+        });
       }
     },
   });
   if (s.ok) {
-    printLine(o, `GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s deaths=${s.deaths} par=${r.par} hash=${s.stateHash}`, {
-      ok: true,
-      ticks: s.ticks,
-      deaths: s.deaths,
-      stateHash: s.stateHash,
-    });
+    printLine(
+      o,
+      `GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s deaths=${s.deaths} par=${r.par} hash=${s.stateHash}`,
+      {
+        ok: true,
+        ticks: s.ticks,
+        deaths: s.deaths,
+        stateHash: s.stateHash,
+      },
+    );
     return 0;
   }
   const pos = s.pos.map(f2).join(",");
-  printLine(o, `FAIL reason=${s.reason} at tick=${s.tick} pos=(${pos}) waypoint=${s.waypointIndex ?? "-"} deaths=${s.deaths}`, {
-    ok: false,
-    reason: s.reason,
-    tick: s.tick,
-    pos: s.pos,
-    waypoint: s.waypointIndex ?? null,
-  });
+  printLine(
+    o,
+    `FAIL reason=${s.reason} at tick=${s.tick} pos=(${pos}) waypoint=${s.waypointIndex ?? "-"} deaths=${s.deaths}`,
+    {
+      ok: false,
+      reason: s.reason,
+      tick: s.tick,
+      pos: s.pos,
+      waypoint: s.waypointIndex ?? null,
+    },
+  );
   return 2;
 }

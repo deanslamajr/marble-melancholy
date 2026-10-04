@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 export const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..");
@@ -38,7 +46,11 @@ export function removeFile(path: string): void {
   if (existsSync(path)) unlinkSync(path);
 }
 
-export function walk(dir: string, filter: (p: string) => boolean, skipDirs: string[] = []): string[] {
+export function walk(
+  dir: string,
+  filter: (p: string) => boolean,
+  skipDirs: string[] = [],
+): string[] {
   if (!existsSync(dir)) return [];
   const out: string[] = [];
   for (const name of readdirSync(dir).sort()) {
@@ -57,7 +69,11 @@ export const isSourceFile = (p: string) => p.endsWith(".level.yaml") || p.endsWi
 export const isCompiledFile = (p: string) => p.endsWith(".level.json");
 
 /** Expand dirs / files into a list of files matching a predicate. */
-export function expandInputs(inputs: string[], filter: (p: string) => boolean, skipDirs: string[] = []): string[] {
+export function expandInputs(
+  inputs: string[],
+  filter: (p: string) => boolean,
+  skipDirs: string[] = [],
+): string[] {
   const out: string[] = [];
   for (const i of inputs) {
     const p = resolve(i);

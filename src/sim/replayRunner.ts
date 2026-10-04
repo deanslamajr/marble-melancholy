@@ -38,7 +38,11 @@ export interface RunResult {
   runs: number[];
 }
 
-export function runInputs(level: PlayableLevel, source: InputSource, opts: RunOptions = {}): RunResult {
+export function runInputs(
+  level: PlayableLevel,
+  source: InputSource,
+  opts: RunOptions = {},
+): RunResult {
   const sim = new RaceSim(level, { players: 1 });
   const p = sim.players[0]!;
   const maxTicks = opts.maxTicks ?? level.timing.timeLimit * TICK_HZ;
@@ -107,7 +111,11 @@ export function runInputs(level: PlayableLevel, source: InputSource, opts: RunOp
 }
 
 /** Re-run an embedded solution replay (runs) for verification. */
-export function runReplay(level: PlayableLevel, runs: readonly number[], opts: RunOptions = {}): RunResult {
+export function runReplay(
+  level: PlayableLevel,
+  runs: readonly number[],
+  opts: RunOptions = {},
+): RunResult {
   const cursor = new RunCursor(runs);
   return runInputs(level, () => cursor.next(), opts);
 }

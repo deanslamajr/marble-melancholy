@@ -42,7 +42,11 @@ function wallBetween(g: GridData, i: number, j: number, edge: number): boolean {
 }
 
 /** Ballistic landing cell of a catapult launch ignoring collisions, or null (§6.5 E013). */
-export function predictCatapultLanding(g: GridData, at: Cell, launch: readonly number[]): Cell | null {
+export function predictCatapultLanding(
+  g: GridData,
+  at: Cell,
+  launch: readonly number[],
+): Cell | null {
   const i0 = idx(g, at[0], at[1]);
   if (!solid(g, i0)) return null;
   let x = at[0] + 0.5;

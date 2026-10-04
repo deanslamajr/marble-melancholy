@@ -1,6 +1,15 @@
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { MANIFEST_FORMAT } from "../../../src/level/version";
-import { COMPILED_DIR, display, isCompiledFile, isSourceFile, removeFile, SRC_DIR, walk, writeJson } from "../fs";
+import {
+  COMPILED_DIR,
+  display,
+  isCompiledFile,
+  isSourceFile,
+  removeFile,
+  SRC_DIR,
+  walk,
+  writeJson,
+} from "../fs";
 import { printLine, type OutOpts } from "../format";
 import { compileOne } from "./compile";
 import { loadFile } from "../load";
@@ -24,12 +33,16 @@ export async function buildAllCommand(o: BuildAllOpts): Promise<number> {
       const slot = r.file.source.course.slot;
       const prev = slots.get(slot);
       if (prev) {
-        printLine(o, `${display(s)}: error E023: course slot ${slot} already used by ${display(prev)}`, {
-          code: "E023",
-          severity: "error",
-          file: display(s),
-          message: `course slot ${slot} duplicated`,
-        });
+        printLine(
+          o,
+          `${display(s)}: error E023: course slot ${slot} already used by ${display(prev)}`,
+          {
+            code: "E023",
+            severity: "error",
+            file: display(s),
+            message: `course slot ${slot} duplicated`,
+          },
+        );
         code = Math.max(code, 1);
       } else {
         slots.set(slot, s);
@@ -61,10 +74,18 @@ export async function buildAllCommand(o: BuildAllOpts): Promise<number> {
     }
   }
   course.sort((a, b) => a.slot - b.slot);
-  const manifest = { format: MANIFEST_FORMAT, course: course.map((c) => c.id), fixtures: fixtures.sort() };
+  const manifest = {
+    format: MANIFEST_FORMAT,
+    course: course.map((c) => c.id),
+    fixtures: fixtures.sort(),
+  };
   writeJson(join(outRoot, "manifest.json"), manifest);
-  printLine(o, `wrote ${display(join(outRoot, "manifest.json"))} (${course.length} races, ${fixtures.length} fixtures)`, {
-    manifest,
-  });
+  printLine(
+    o,
+    `wrote ${display(join(outRoot, "manifest.json"))} (${course.length} races, ${fixtures.length} fixtures)`,
+    {
+      manifest,
+    },
+  );
   return code;
 }

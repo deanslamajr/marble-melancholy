@@ -17,7 +17,11 @@ export interface CompileOutcome {
 }
 
 /** Compile one source file; writes `<out>/<id>.level.json` on success. */
-export async function compileOne(path: string, o: CompileOpts, outDir?: string): Promise<CompileOutcome> {
+export async function compileOne(
+  path: string,
+  o: CompileOpts,
+  outDir?: string,
+): Promise<CompileOutcome> {
   const shown = display(path);
   const r = loadFile(path);
   if (!r.ok) {
@@ -29,16 +33,31 @@ export async function compileOne(path: string, o: CompileOpts, outDir?: string):
     return { code: 3 };
   }
   const { source, text, layerLines } = r.file;
-  const res = await compileLevel(source, { sourceText: text, layerLines, allowUnsolved: o.allowUnsolved });
+  const res = await compileLevel(source, {
+    sourceText: text,
+    layerLines,
+    allowUnsolved: o.allowUnsolved,
+  });
   if (!res.ok) {
     printDiagnostics(res.diagnostics, shown, o);
     const solveFail = res.diagnostics.some((d) => d.code === "E018" || d.code === "E019");
-    return { code: solveFail && !res.diagnostics.some((d) => d.severity === "error" && d.code !== "E018" && d.code !== "E019") ? 2 : 1 };
+    return {
+      code:
+        solveFail &&
+        !res.diagnostics.some(
+          (d) => d.severity === "error" && d.code !== "E018" && d.code !== "E019",
+        )
+          ? 2
+          : 1,
+    };
   }
   printDiagnostics(res.warnings, shown, o);
   if ("draft" in res) {
     printDiagnostics(res.diagnostics, shown, o);
-    printLine(o, `${shown}: draft OK (not written; --allow-unsolved)`, { file: shown, draft: true });
+    printLine(o, `${shown}: draft OK (not written; --allow-unsolved)`, {
+      file: shown,
+      draft: true,
+    });
     return { code: 0, id: source.id };
   }
   const dir = outDir ?? o.out ?? defaultOutDir(path);
@@ -48,7 +67,14 @@ export async function compileOne(path: string, o: CompileOpts, outDir?: string):
   printLine(
     o,
     `${shown} → ${display(outPath)}  GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s deaths=${s.deaths} par=${res.level.timing.par} hash=${s.stateHash}`,
-    { file: shown, out: display(outPath), id: res.level.id, ticks: s.ticks, deaths: s.deaths, stateHash: s.stateHash },
+    {
+      file: shown,
+      out: display(outPath),
+      id: res.level.id,
+      ticks: s.ticks,
+      deaths: s.deaths,
+      stateHash: s.stateHash,
+    },
   );
   return { code: 0, id: res.level.id, outPath, slot: res.level.course?.slot };
 }

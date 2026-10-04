@@ -1,0 +1,60 @@
+import { navigate } from "../../app/router";
+import { APP_VERSION } from "../../version";
+import { useController } from "../context";
+import { MenuList } from "./MenuList";
+import { PixelText } from "./PixelText";
+
+export function TitleScreen() {
+  const c = useController();
+  const err = c.error.value;
+  return (
+    <div class="overlay title-screen" data-testid="title-screen">
+      <div class="title-logo">
+        <PixelText as="h1" size="xl" class="logo-line">
+          MARBLE
+        </PixelText>
+        <PixelText as="h1" size="xl" class="logo-line logo-sub">
+          MELANCHOLY
+        </PixelText>
+        <PixelText size="s" tone="dim">
+          a short, sad race downhill
+        </PixelText>
+      </div>
+      {err && (
+        <PixelText size="s" tone="warn" class="error-line">
+          {err}
+        </PixelText>
+      )}
+      <MenuList
+        testId="title-menu"
+        items={[
+          {
+            label: "PLAY",
+            onSelect: () => navigate({ name: "play" }),
+            disabled: c.courseLevels.length === 0,
+          },
+          { label: "CUSTOM RACES", onSelect: () => navigate({ name: "custom" }) },
+          { label: "LEVEL BUILDER", onSelect: () => navigate({ name: "builder" }) },
+          { label: "HIGH SCORES", onSelect: () => navigate({ name: "scores" }) },
+          { label: "SETTINGS", onSelect: () => navigate({ name: "settings" }) },
+        ]}
+      />
+      <PixelText size="s" tone="dim" class="version">
+        v{APP_VERSION}
+      </PixelText>
+    </div>
+  );
+}
+
+export function AttractOverlay() {
+  return (
+    <div class="overlay attract" data-testid="attract">
+      <PixelText size="l" class="blink">
+        DEMO
+      </PixelText>
+      <PixelText size="s" tone="dim">
+        PRESS ANY KEY
+      </PixelText>
+    </div>
+  );
+}
