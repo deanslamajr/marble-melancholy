@@ -10,7 +10,10 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 function gitCommit(): string {
   try {
     const sha = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
-    const dirty = execSync("git status --porcelain", { encoding: "utf8" }).trim() !== "";
+    // Vite writes vite.config.ts.timestamp-*.mjs beside this file while loading it.
+    const dirty = execSync("git status --porcelain", { encoding: "utf8" })
+      .split("\n")
+      .some((l) => l.trim() !== "" && !l.includes("vite.config.ts.timestamp-"));
     return dirty ? `${sha}+dirty` : sha;
   } catch {
     return "nogit";
