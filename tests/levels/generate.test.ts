@@ -91,7 +91,7 @@ describe("retries", () => {
 });
 
 /**
- * Expected rates over the 50 seeds (L25). `forked` is the share of courses with at least one
+ * Expected rates over the 50 seeds (T15). `forked` is the share of courses with at least one
  * fork or shortcut; `switchback` the share with two or more turns; `risky` the share whose
  * embedded solution takes every risky line; `kinds` the mean distinct segment kinds per course.
  */
