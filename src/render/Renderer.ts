@@ -31,6 +31,7 @@ import {
   type MuncherState,
 } from "./draw/entities";
 import { defaultLook, drawMarble, drawShadow, type MarbleLook } from "./draw/marble";
+import { sphereAnchor } from "./depth";
 import { VIEW_H, VIEW_W } from "./iso";
 import { Particles } from "./particles";
 import { TerrainStrips, type ViewRect } from "./terrainStrips";
@@ -616,25 +617,8 @@ export class Renderer {
     this.entB[n] = bb;
   }
 
-  /**
-   * Strip anchor for a sphere: its own cell, bumped one cell toward the viewer on an axis where
-   * it overhangs a neighbour whose top is not above it (so that neighbour cannot paint over it).
-   */
   private anchor(x: number, y: number, z: number): number {
-    const env = this.env!;
-    let ax = Math.floor(x);
-    let ay = Math.floor(y);
-    const r = MARBLE_RADIUS;
-    const bx = x - ax + r > 1 && this.lowEnough(ax + 1, ay, z, env);
-    const by = y - ay + r > 1 && this.lowEnough(ax, ay + 1, z, env);
-    if (bx) ax++;
-    if (by) ay++;
-    return ax + ay;
-  }
-
-  private lowEnough(cx: number, cy: number, z: number, env: CellEnv): boolean {
-    if (cx < 0 || cy < 0 || cx >= env.W || cy >= env.H) return true;
-    return env.topMax[cy * env.W + cx]! <= z + 0.05;
+    return sphereAnchor(this.env!, x, y, z, MARBLE_RADIUS, this.tick);
   }
 
   /** Marbles riding a platform share the anchor of the piece under them (drawn after it). */
