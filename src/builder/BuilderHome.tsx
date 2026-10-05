@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 import { navigate } from "../app/router";
 import { TICK_HZ } from "../sim/constants";
 import {
@@ -23,6 +23,7 @@ import {
   exampleDraftSource,
   exampleSource,
   listExamples,
+  type ExampleEntry,
 } from "./examples";
 
 function ago(ms: number): string {
@@ -104,8 +105,19 @@ export function BuilderHome() {
     navigate({ name: "builderDraft", draftId: d.id });
   };
 
-  const examples = useMemo(() => listExamples(), []);
-  const [exampleId, setExampleId] = useState(() => examples[0]?.id ?? "");
+  const [examples, setExamples] = useState<ExampleEntry[]>([]);
+  const [exampleId, setExampleId] = useState("");
+  useEffect(() => {
+    let alive = true;
+    void listExamples().then((list) => {
+      if (!alive) return;
+      setExamples(list);
+      setExampleId((id) => id || (list[0]?.id ?? ""));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [opening, setOpening] = useState(false);
   const openExample = async () => {
     if (!exampleId || opening) return;

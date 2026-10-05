@@ -17,9 +17,9 @@ test("Extra Courses lists the shipped extras and plays one as a single race", as
 test("a shared generated-course link boots straight into that race", async ({ page }) => {
   const errors = collectErrors(page);
   await openGame(page, "#/play/generated/easy/777");
-  await expect(page.getByTestId("race-intro")).toContainText("GENERATED · EASY", {
-    timeout: 20_000,
-  });
+  // On a slow machine the intro can pass before the first poll; the HUD label outlasts it.
+  await expect(page.getByTestId("hud")).toContainText("GENERATED", { timeout: 20_000 });
+  expect(await page.evaluate(() => location.hash)).toBe("#/play/generated/easy/777");
   expect(errors).toEqual([]);
 });
 

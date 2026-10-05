@@ -3,7 +3,7 @@ import { decompileToSource } from "../level/compile";
 import { parseSource } from "../level/parse";
 import type { LevelSource } from "../level/types";
 import { LevelLoader } from "../levels/loader";
-import { allLevelIds, courseIds, extraIds, fixtureIds, rawLevel } from "../levels/manifest";
+import { allLevelIds, courseIds, extraIds, fixtureIds, loadRawLevel } from "../levels/manifest";
 import { copyLevelId, NAME_MAX } from "../storage/levelsStore";
 
 export type ExampleGroup = "course" | "extra" | "fixture" | "other";
@@ -31,20 +31,23 @@ const SOURCES = import.meta.glob(["/levels/src/**/*.level.yaml", "!/levels/src/*
 }) as Record<string, () => Promise<string>>;
 
 /** Every shipped level in manifest order: course races, extras, fixtures, then any other level. */
-export function listExamples(): ExampleEntry[] {
-  const out: ExampleEntry[] = [];
+export async function listExamples(): Promise<ExampleEntry[]> {
+  const wanted: Array<[string, ExampleGroup]> = [
+    ...courseIds().map((id): [string, ExampleGroup] => [id, "course"]),
+    ...extraIds().map((id): [string, ExampleGroup] => [id, "extra"]),
+    ...fixtureIds().map((id): [string, ExampleGroup] => [id, "fixture"]),
+    ...allLevelIds()
+      .sort()
+      .map((id): [string, ExampleGroup] => [id, "other"]),
+  ];
   const seen = new Set<string>();
-  const add = (id: string, group: ExampleGroup) => {
-    if (seen.has(id)) return;
-    const raw = rawLevel(id) as { name?: unknown } | undefined;
-    if (!raw) return;
-    seen.add(id);
-    out.push({ id, name: typeof raw.name === "string" ? raw.name : id, group });
-  };
-  for (const id of courseIds()) add(id, "course");
-  for (const id of extraIds()) add(id, "extra");
-  for (const id of fixtureIds()) add(id, "fixture");
-  for (const id of allLevelIds().sort()) add(id, "other");
+  const unique = wanted.filter(([id]) => !seen.has(id) && seen.add(id));
+  const raws = await Promise.all(unique.map(([id]) => loadRawLevel(id)));
+  const out: ExampleEntry[] = [];
+  unique.forEach(([id, group], i) => {
+    const raw = raws[i] as { name?: unknown } | undefined;
+    if (raw) out.push({ id, name: typeof raw.name === "string" ? raw.name : id, group });
+  });
   return out;
 }
 

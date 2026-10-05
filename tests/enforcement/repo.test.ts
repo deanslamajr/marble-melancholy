@@ -78,9 +78,9 @@ describe("no inline levels", () => {
     const users = srcFiles.filter((f) => read(f).includes("import.meta.glob")).map(rel);
     expect(users.sort()).toEqual(["src/builder/examples.ts", "src/levels/manifest.ts"]);
     const text = read(join(SRC, "levels", "manifest.ts"));
-    const globs = [...text.matchAll(/import\.meta\.glob\(\s*["']([^"']+)["']/g)].map((m) => m[1]);
+    const globs = [...text.matchAll(/["'](!?\/levels\/[^"']*)["']/g)].map((m) => m[1]!);
     expect(globs.length).toBeGreaterThan(0);
-    for (const g of globs) expect(g!.startsWith("/levels/compiled/")).toBe(true);
+    for (const g of globs) expect(g).toMatch(/^!?\/levels\/compiled\//);
   });
 
   it("the builder's examples read /levels/src only, as lazy raw text (B12)", () => {
@@ -122,6 +122,42 @@ describe("layering", () => {
       .filter((f) => /Math\.random\(|Date\.now\(|performance\.now\(/.test(read(f)))
       .map(rel);
     expect(bad).toEqual([]);
+  });
+});
+
+describe("course generator", () => {
+  const gen = srcFiles.filter((f) => rel(f).startsWith("src/level/generate/"));
+
+  it("is pure and seedable: no Math.random, clocks or banned Math functions (D06, D07)", () => {
+    expect(gen.length).toBeGreaterThan(0);
+    const banned =
+      /Math\.(random|sin|cos|tan|atan2?|exp|log|pow|hypot|cbrt)\(|Date\.now\(|performance\.now\(|[\w)\]]\s*\*\*\s*[\w(]/;
+    expect(gen.filter((f) => banned.test(read(f))).map(rel)).toEqual([]);
+    expect(gen.some((f) => /\bnew Rng\(/.test(read(f)))).toBe(true);
+  });
+
+  it("the layout generator itself never reaches yaml; only the pipeline compiles", () => {
+    const seen = new Set<string>();
+    const bare = new Set<string>();
+    const stack = [join(SRC, "level", "generate", "generate.ts")];
+    while (stack.length) {
+      const f = stack.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      for (const s of staticImports(read(f))) {
+        const t = resolveLocal(f, s);
+        if (t) stack.push(t);
+        else if (!s.startsWith(".")) bare.add(s.split("/")[0]!);
+      }
+    }
+    expect([...bare]).not.toContain("yaml");
+    expect([...seen].map(rel)).not.toContain("src/level/parse.ts");
+  });
+
+  it("the game reaches the generator pipeline only through a dynamic import", () => {
+    const screen = read(join(SRC, "ui", "components", "GenerateScreen.tsx"));
+    expect(screen).toContain('import("../../level/generate/pipeline")');
+    expect(staticImports(screen).some((s) => s.includes("level/generate"))).toBe(false);
   });
 });
 

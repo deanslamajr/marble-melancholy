@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import { navigate } from "../../app/router";
-import { extraIds, rawLevel } from "../../levels/manifest";
+import { extraIds, loadRawLevel } from "../../levels/manifest";
 import { TICK_HZ } from "../../sim/constants";
 import { loadBestTimes } from "../../storage/bestTimes";
 import { PixelText } from "./PixelText";
@@ -28,9 +28,11 @@ interface Row {
   par: number;
 }
 
-function rows(): Row[] {
-  return extraIds().flatMap((id) => {
-    const raw = rawLevel(id) as { name?: unknown; timing?: { par?: unknown } } | undefined;
+async function loadRows(): Promise<Row[]> {
+  const ids = extraIds();
+  const raws = await Promise.all(ids.map((id) => loadRawLevel(id)));
+  return ids.flatMap((id, i) => {
+    const raw = raws[i] as { name?: unknown; timing?: { par?: unknown } } | undefined;
     if (!raw) return [];
     const par = typeof raw.timing?.par === "number" ? raw.timing.par : 0;
     return [{ id, name: typeof raw.name === "string" ? raw.name : id, par }];
@@ -38,8 +40,16 @@ function rows(): Row[] {
 }
 
 export function ExtraCourses() {
-  const list = useMemo(rows, []);
+  const [list, setList] = useState<Row[] | null>(null);
   const best = useMemo(() => loadBestTimes(), []);
+
+  useEffect(() => {
+    let alive = true;
+    void loadRows().then((r) => alive && setList(r));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -56,7 +66,12 @@ export function ExtraCourses() {
         Single races outside the main course. Beat your best time.
       </PixelText>
       <div class="list">
-        {list.map((r) => {
+        {list === null && (
+          <PixelText size="s" tone="dim">
+            loading…
+          </PixelText>
+        )}
+        {list?.map((r) => {
           const b = best[r.id];
           const tier = EXTRA_TIER[r.id];
           return (

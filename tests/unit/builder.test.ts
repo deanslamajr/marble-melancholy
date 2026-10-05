@@ -211,9 +211,9 @@ describe("import / export", () => {
 });
 
 describe("examples (shipped levels as drafts)", () => {
-  it("lists every manifest level, course races first, with their names", () => {
+  it("lists every manifest level, course races first, with their names", async () => {
     const m = manifest();
-    const list = listExamples();
+    const list = await listExamples();
     const ids = list.map((e) => e.id);
     expect(ids.slice(0, m.course.length)).toEqual(m.course);
     for (const id of [...m.course, ...m.fixtures]) expect(ids).toContain(id);
@@ -222,10 +222,10 @@ describe("examples (shipped levels as drafts)", () => {
     expect(list.every((e) => e.group === "course" || !m.course.includes(e.id))).toBe(true);
   });
 
-  it("lists the extra courses right after the course races, in manifest order", () => {
+  it("lists the extra courses right after the course races, in manifest order", async () => {
     const m = manifest();
     expect(m.extras.length).toBeGreaterThanOrEqual(8);
-    const list = listExamples();
+    const list = await listExamples();
     const extras = list.filter((e) => e.group === "extra");
     expect(extras.map((e) => e.id)).toEqual(m.extras);
     expect(list.slice(m.course.length, m.course.length + m.extras.length)).toEqual(extras);
@@ -235,7 +235,7 @@ describe("examples (shipped levels as drafts)", () => {
   });
 
   it("opens each example from its YAML source, with layers, entities and waypoints", async () => {
-    for (const e of listExamples()) {
+    for (const e of await listExamples()) {
       const { source, from } = await exampleSource(e.id);
       expect(from, e.id).toBe("yaml");
       expect(source.id).toBe(e.id);

@@ -7,8 +7,6 @@ import { bestTicksFor, recordBestTime } from "../storage/bestTimes";
 import { getCustomLevel } from "../storage/levelsStore";
 import { CourseComplete } from "./components/CourseComplete";
 import { CustomLevels } from "./components/CustomLevels";
-import { ExtraCourses } from "./components/ExtraCourses";
-import { GenerateScreen } from "./components/GenerateScreen";
 import { GameOver } from "./components/GameOver";
 import { HighScoreEntry } from "./components/HighScoreEntry";
 import { HighScoreTable } from "./components/HighScoreTable";
@@ -196,11 +194,31 @@ export function GameShell(props: { controller: GameController }) {
   );
 }
 
+type MenuComponent = () => preact.JSX.Element;
+
+/** The extras and generator menus are code-split like the builder. */
+function LazyMenu({ load }: { load: () => Promise<MenuComponent> }) {
+  const [Comp, setComp] = useState<MenuComponent | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void load().then((m) => {
+      if (alive) setComp(() => m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+  return Comp ? <Comp /> : null;
+}
+
+const loadExtras = () => import("./components/ExtraCourses").then((m) => m.ExtraCourses);
+const loadGenerate = () => import("./components/GenerateScreen").then((m) => m.GenerateScreen);
+
 /** The "custom" game state hosts every single-race menu; the route picks which one. */
 function SingleRaceMenu() {
   const name = route.value.name;
-  if (name === "extras" || name === "playExtra") return <ExtraCourses />;
-  if (name === "generate" || name === "playGenerated") return <GenerateScreen />;
+  if (name === "extras" || name === "playExtra") return <LazyMenu load={loadExtras} />;
+  if (name === "generate" || name === "playGenerated") return <LazyMenu load={loadGenerate} />;
   return <CustomLevels />;
 }
 

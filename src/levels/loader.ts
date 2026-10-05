@@ -1,7 +1,7 @@
 import { verifyCompiled } from "../level/verify";
 import { formatDiagnostic } from "../level/diagnostics";
 import type { CompiledLevel } from "../level/types";
-import { courseIds, rawLevel } from "./manifest";
+import { courseIds, loadRawLevel } from "./manifest";
 
 export class LevelLoadError extends Error {
   constructor(
@@ -26,7 +26,7 @@ export const LevelLoader = {
       const hit = cache.get(idOrJson);
       if (hit) return hit;
     }
-    const json = fromId ? rawLevel(idOrJson) : idOrJson;
+    const json = fromId ? await loadRawLevel(idOrJson) : idOrJson;
     if (json === undefined)
       throw new LevelLoadError(`unknown level id "${String(idOrJson)}"`, "E000");
     const report = await verifyCompiled(json, { replay: false });

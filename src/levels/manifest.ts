@@ -8,10 +8,15 @@ interface Manifest {
   extras?: string[];
 }
 
-const files = import.meta.glob("/levels/compiled/**/*.level.json", {
-  eager: true,
+const files = import.meta.glob(
+  ["/levels/compiled/**/*.level.json", "!/levels/compiled/extras/**"],
+  { eager: true, import: "default" },
+) as Record<string, unknown>;
+
+/** Extra courses are code-split: only players who open one download it. */
+const extraFiles = import.meta.glob("/levels/compiled/extras/*.level.json", {
   import: "default",
-}) as Record<string, unknown>;
+}) as Record<string, () => Promise<unknown>>;
 
 const manifestFiles = import.meta.glob("/levels/compiled/manifest.json", {
   eager: true,
@@ -44,11 +49,20 @@ export function extraIds(): readonly string[] {
   return manifest.extras ?? [];
 }
 
-/** Raw (unverified) compiled JSON by level id; pass it to LevelLoader.load before use. */
+/** Raw (unverified) compiled JSON of a bundled (non-extra) level; verify with LevelLoader.load. */
 export function rawLevel(id: string): unknown {
   return byId.get(id);
 }
 
+/** Raw (unverified) compiled JSON of any shipped level, extras included (fetched on demand). */
+export async function loadRawLevel(id: string): Promise<unknown> {
+  const hit = byId.get(id);
+  if (hit !== undefined) return hit;
+  const load = extraFiles[`/levels/compiled/extras/${id}.level.json`];
+  return load ? load() : undefined;
+}
+
+/** Ids of every bundled (non-extra) compiled level. */
 export function allLevelIds(): string[] {
   return [...byId.keys()];
 }
