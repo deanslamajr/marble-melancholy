@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { PlayerSnapshot, SimSnapshot } from "../../../src/sim/types";
-import { Camera, trailingPlayer } from "../../../src/render/camera";
+import {
+  CAM_LEAVE_BEHIND_TICKS,
+  Camera,
+  fit2P,
+  LeaveBehindRule,
+  trailingPlayer,
+} from "../../../src/render/camera";
 import { project } from "../../../src/render/iso";
 
 const BIG = { minSx: -5000, minSy: -5000, maxSx: 5000, maxSy: 5000 };
@@ -34,10 +40,8 @@ function snap(players: PlayerSnapshot[]): SimSnapshot {
   return { tick: 0, countdown: 0, players, entities: [], checkpointOwners: [] };
 }
 
-function run(cam: Camera, s: SimSnapshot, frames: number, dt = 1 / 60): (number | null)[] {
-  const out: (number | null)[] = [];
-  for (let i = 0; i < frames; i++) out.push(cam.update(s, dt));
-  return out;
+function run(cam: Camera, s: SimSnapshot, frames: number, dt = 1 / 60): void {
+  for (let i = 0; i < frames; i++) cam.update(s, dt);
 }
 
 describe("Camera 1P", () => {
@@ -98,12 +102,35 @@ describe("Camera 1P", () => {
     expect(cam2.cy).toBe(-96 + 270);
   });
 
+  it("clamps against the visible view and stays centred on the marble away from edges", () => {
+    const wide = { minSx: 0, minSy: 0, maxSx: 4000, maxSy: 4000 };
+    const cam = new Camera(wide);
+    cam.setView(1296, 540);
+    cam.snapTo(snap([player(0, { x: 0, y: 0, z: 0 })]));
+    expect(cam.cx).toBe(-96 + 648);
+    expect(cam.cy).toBe(-96 + 270);
+
+    const mid = snap([player(0, { x: 60, y: 20, z: 0 })]);
+    const p = project(60, 20, 0);
+    for (const [w, h] of [
+      [960, 540],
+      [1296, 540],
+      [960, 1280],
+    ]) {
+      const c = new Camera(wide);
+      c.setView(w!, h!);
+      c.snapTo(mid);
+      expect(c.cx).toBeCloseTo(p.sx);
+      expect(c.cy).toBeCloseTo(p.sy);
+    }
+  });
+
   it("free mode ignores marbles; pan and zoomAt keep the anchor point fixed", () => {
     const cam = new Camera(BIG);
     cam.snapTo(snap([player(0)]));
     cam.free = true;
     const { cx, cy } = cam;
-    expect(cam.update(snap([player(0, { x: 40, y: 40 })]), 1)).toBeNull();
+    cam.update(snap([player(0, { x: 40, y: 40 })]), 1);
     expect(cam.cx).toBe(cx);
     cam.pan(10, -20);
     expect(cam.cx).toBeCloseTo(cx - 10);
@@ -139,30 +166,94 @@ describe("Camera 2P", () => {
     expect(cam.zoom).toBe(1);
   });
 
-  it("reports the trailing player after 30 consecutive unfit frames, then resets", () => {
+  it("keeps the zoom at or above the 2P minimum when the pair does not fit", () => {
     const cam = new Camera(BIG);
-    const s = snap([
-      player(0, { x: 5, y: 5, progressBest: 300 }),
-      player(1, { x: 40, y: 40, progressBest: 700 }),
-    ]);
+    const s = snap([player(0, { x: 5, y: 5 }), player(1, { x: 40, y: 40 })]);
     cam.snapTo(s);
-    const results = run(cam, s, 60);
-    expect(results.slice(0, 29).every((r) => r === null)).toBe(true);
-    expect(results[29]).toBe(0);
-    expect(results.slice(30, 59).every((r) => r === null)).toBe(true);
-    expect(results[59]).toBe(0);
-    expect(cam.zoom).toBeGreaterThanOrEqual(0.6 - 1e-9);
+    run(cam, s, 60);
+    expect(cam.zoom).toBeCloseTo(0.6, 9);
   });
 
-  it("resets the counter when the pair fits again", () => {
-    const cam = new Camera(BIG);
-    const far = snap([player(0, { x: 5, y: 5 }), player(1, { x: 40, y: 40 })]);
-    const near = snap([player(0, { x: 5, y: 5 }), player(1, { x: 6, y: 5 })]);
-    cam.snapTo(far);
-    expect(run(cam, far, 20).every((r) => r === null)).toBe(true);
-    run(cam, near, 1);
-    expect(run(cam, far, 29).every((r) => r === null)).toBe(true);
-    expect(cam.update(far, 1 / 60)).not.toBeNull();
+  it("frames the same pair identically on every visible view size", () => {
+    const s = snap([player(0, { x: 10, y: 10 }), player(1, { x: 22, y: 10 })]);
+    const frames = [
+      [960, 540],
+      [1296, 540],
+      [960, 600],
+      [960, 1280],
+    ].map(([w, h]) => {
+      const cam = new Camera(BIG);
+      cam.setView(w!, h!);
+      cam.snapTo(s);
+      run(cam, s, 30);
+      return { cx: cam.cx, cy: cam.cy, zoom: cam.zoom };
+    });
+    for (const f of frames) expect(f).toEqual(frames[0]);
+  });
+});
+
+describe("2P fit and left-behind rule", () => {
+  const far = snap([
+    player(0, { x: 5, y: 5, progressBest: 300 }),
+    player(1, { x: 40, y: 40, progressBest: 700 }),
+  ]);
+  const near = snap([player(0, { x: 5, y: 5 }), player(1, { x: 6, y: 5 })]);
+
+  function ticks(rule: LeaveBehindRule, s: SimSnapshot, n: number): (number | null)[] {
+    const out: (number | null)[] = [];
+    for (let i = 0; i < n; i++) out.push(rule.tick(s));
+    return out;
+  }
+
+  it("measures the fit against the fixed 960×540 box", () => {
+    const a = project(5, 5, 2);
+    const b = project(40, 40, 2);
+    const reqW = Math.abs(a.sx - b.sx) + 320;
+    const reqH = Math.abs(a.sy - b.sy) + 240;
+    expect(fit2P(far)).toBeCloseTo(Math.min(960 / reqW, 540 / reqH), 12);
+    expect(fit2P(snap([player(0), player(1, { status: "dying" })]))).toBeNull();
+    expect(fit2P(snap([player(0)]))).toBeNull();
+  });
+
+  it("is independent of the visible view size", () => {
+    const pairs = [far, near, snap([player(0, { x: 3, y: 9 }), player(1, { x: 21, y: 4, z: 6 })])];
+    const base = pairs.map((s) => fit2P(s));
+    for (const [w, h] of [
+      [1296, 540],
+      [1152, 540],
+      [960, 600],
+      [960, 1280],
+    ]) {
+      const cam = new Camera(BIG);
+      cam.setView(w!, h!);
+      for (const s of pairs) {
+        cam.snapTo(s);
+        run(cam, s, 5);
+      }
+      expect(pairs.map((s) => fit2P(s))).toEqual(base);
+      const rule = new LeaveBehindRule();
+      expect(ticks(rule, far, CAM_LEAVE_BEHIND_TICKS).at(-1)).toBe(0);
+    }
+  });
+
+  it("reports the trailing player after 60 consecutive unfit ticks (0.5 s), then resets", () => {
+    expect(CAM_LEAVE_BEHIND_TICKS).toBe(60);
+    const rule = new LeaveBehindRule();
+    const results = ticks(rule, far, 120);
+    expect(results.slice(0, 59).every((r) => r === null)).toBe(true);
+    expect(results[59]).toBe(0);
+    expect(results.slice(60, 119).every((r) => r === null)).toBe(true);
+    expect(results[119]).toBe(0);
+  });
+
+  it("resets the counter when the pair fits again or on reset()", () => {
+    const rule = new LeaveBehindRule();
+    expect(ticks(rule, far, 40).every((r) => r === null)).toBe(true);
+    rule.tick(near);
+    expect(ticks(rule, far, 59).every((r) => r === null)).toBe(true);
+    rule.reset();
+    expect(ticks(rule, far, 59).every((r) => r === null)).toBe(true);
+    expect(rule.tick(far)).toBe(0);
   });
 });
 

@@ -58,8 +58,11 @@ export function GameShell(props: { controller: GameController }) {
     c.attachCanvas(canvas);
     const onResize = () => c.resize();
     window.addEventListener("resize", onResize);
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+    ro?.observe(canvas);
     return () => {
       window.removeEventListener("resize", onResize);
+      ro?.disconnect();
       c.detachCanvas();
     };
   }, [c]);

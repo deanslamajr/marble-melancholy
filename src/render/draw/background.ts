@@ -1,12 +1,12 @@
-// Per-theme background gradient and drifting shapes (§7.11). Screen space, logical 960×540.
+// Per-theme background gradient and drifting shapes (§7.11). Screen space, logical view pixels.
 import { Rng } from "../../core/rng";
 import type { ResolvedTheme } from "../../level/types";
-import { VIEW_H, VIEW_W } from "../iso";
 import { withAlpha } from "../themes";
 
 interface Shape {
-  x: number;
-  y: number;
+  /** Position as a fraction of the wrap span, so shapes cover any view size. */
+  u: number;
+  v: number;
   size: number;
   vx: number;
   vy: number;
@@ -28,6 +28,7 @@ export class Background {
   private theme: ResolvedTheme | null = null;
   private gradient: CanvasGradient | null = null;
   private gradientCtx: CanvasRenderingContext2D | null = null;
+  private gradientH = 0;
   private shapes: Shape[] = [];
   private readonly rng = new Rng((Math.random() * 4294967296) >>> 0);
   private time = 0;
@@ -42,8 +43,8 @@ export class Background {
     for (let n = 0; n < count; n++) {
       const depth = r.range(0.04, 0.18);
       const s: Shape = {
-        x: r.range(0, VIEW_W + MARGIN * 2),
-        y: r.range(0, VIEW_H + MARGIN * 2),
+        u: r.next(),
+        v: r.next(),
         size: r.range(0.5, 1),
         vx: 0,
         vy: 0,
@@ -86,31 +87,39 @@ export class Background {
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D, camX: number, camY: number, dt: number): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    viewW: number,
+    viewH: number,
+    camX: number,
+    camY: number,
+    dt: number,
+  ): void {
     const theme = this.theme;
     if (!theme) {
       ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.fillRect(0, 0, viewW, viewH);
       return;
     }
-    if (!this.gradient || this.gradientCtx !== ctx) {
-      const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+    if (!this.gradient || this.gradientCtx !== ctx || this.gradientH !== viewH) {
+      const g = ctx.createLinearGradient(0, 0, 0, viewH);
       g.addColorStop(0, theme.bgTop);
       g.addColorStop(1, theme.bgBottom);
       this.gradient = g;
       this.gradientCtx = ctx;
+      this.gradientH = viewH;
     }
     ctx.fillStyle = this.gradient;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.fillRect(0, 0, viewW, viewH);
     this.time += dt;
-    const spanX = VIEW_W + MARGIN * 2;
-    const spanY = VIEW_H + MARGIN * 2;
+    const spanX = viewW + MARGIN * 2;
+    const spanY = viewH + MARGIN * 2;
     for (const s of this.shapes) {
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
+      s.u = wrap(s.u + (s.vx * dt) / spanX, 1);
+      s.v = wrap(s.v + (s.vy * dt) / spanY, 1);
       s.rot += s.vrot * dt;
-      const X = wrap(s.x - camX * s.depth, spanX) - MARGIN;
-      const Y = wrap(s.y - camY * s.depth, spanY) - MARGIN;
+      const X = wrap(s.u * spanX - camX * s.depth, spanX) - MARGIN;
+      const Y = wrap(s.v * spanY - camY * s.depth, spanY) - MARGIN;
       this.drawShape(ctx, theme, s, X, Y);
     }
   }

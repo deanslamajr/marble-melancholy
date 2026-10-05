@@ -32,7 +32,7 @@ import {
 } from "./draw/entities";
 import { defaultLook, drawMarble, drawShadow, type MarbleLook } from "./draw/marble";
 import { sphereAnchor } from "./depth";
-import { VIEW_H, VIEW_W } from "./iso";
+import { backingScale, VIEW_H, VIEW_W, viewSizeFor, type ViewSize } from "./iso";
 import { Particles } from "./particles";
 import { TerrainStrips, type ViewRect } from "./terrainStrips";
 import { NEUTRAL_FLAG, playerColor } from "./themes";
@@ -126,6 +126,7 @@ export class Renderer {
   private readonly debug: boolean;
   private readonly cacheEnabled: boolean;
   private dpr = 1;
+  private view: ViewSize = { w: VIEW_W, h: VIEW_H };
   private level: UnstampedLevel | null = null;
   private env: CellEnv | null = null;
   private strips: TerrainStrips | null = null;
@@ -151,7 +152,7 @@ export class Renderer {
     alpha: 1,
   };
   private readonly look: MarbleLook = defaultLook("#ffffff");
-  private readonly view: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  private readonly visible: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
   private entX = new Float64Array(16);
   private entY = new Float64Array(16);
   private entZ = new Float64Array(16);
@@ -182,17 +183,38 @@ export class Renderer {
     for (let p = 0; p < this.fx.length; p++) this.fx[p] = newPlayerFx();
   }
 
+  /** Visible logical view (R16): the base 960×540 grown to the canvas's CSS aspect. */
+  get viewW(): number {
+    return this.view.w;
+  }
+
+  get viewH(): number {
+    return this.view.h;
+  }
+
+  /** Re-reads the canvas's CSS size; sets the visible view and the backing store. */
   resize(): void {
     const ratio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    const dpr = Math.min(ratio, 2);
-    const w = Math.round(VIEW_W * dpr);
-    const h = Math.round(VIEW_H * dpr);
+    this.view = viewSizeFor(this.canvas.clientWidth, this.canvas.clientHeight);
+    const dpr = backingScale(this.view, ratio);
+    const w = Math.round(this.view.w * dpr);
+    const h = Math.round(this.view.h * dpr);
     if (this.canvas.width !== w) this.canvas.width = w;
     if (this.canvas.height !== h) this.canvas.height = h;
     if (dpr !== this.dpr) {
       this.dpr = dpr;
       this.strips?.clear();
     }
+  }
+
+  /** Client coordinates to logical view coordinates, allowing for `object-fit: contain`. */
+  clientToView(clientX: number, clientY: number): { X: number; Y: number; k: number } {
+    const r = this.canvas.getBoundingClientRect();
+    const k =
+      r.width > 0 && r.height > 0 ? Math.max(this.view.w / r.width, this.view.h / r.height) : 1;
+    const ox = (r.width - this.view.w / k) / 2;
+    const oy = (r.height - this.view.h / k) / 2;
+    return { X: (clientX - r.left - ox) * k, Y: (clientY - r.top - oy) * k, k };
   }
 
   setPathOverlay(points: Array<[number, number]> | null): void {
@@ -312,7 +334,7 @@ export class Renderer {
       this.renderFrame(snap, snap, 1, camera, dt);
     } else {
       this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-      this.background.draw(this.ctx, camera.cx, camera.cy, dt);
+      this.background.draw(this.ctx, this.view.w, this.view.h, camera.cx, camera.cy, dt);
     }
     this.recordFrameTime(t0);
   }
@@ -355,7 +377,8 @@ export class Renderer {
     const dpr = this.dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalAlpha = 1;
-    this.background.draw(ctx, cam.cx * cam.zoom, cam.cy * cam.zoom, dt);
+    const { w: viewW, h: viewH } = this.view;
+    this.background.draw(ctx, viewW, viewH, cam.cx * cam.zoom, cam.cy * cam.zoom, dt);
     const env = this.env;
     const strips = this.strips;
     const level = this.level;
@@ -363,14 +386,14 @@ export class Renderer {
 
     const zoom = cam.zoom;
     const s = dpr * zoom;
-    const tx = Math.round(dpr * (VIEW_W / 2 - cam.cx * zoom));
-    const ty = Math.round(dpr * (VIEW_H / 2 - cam.cy * zoom));
+    const tx = Math.round(dpr * (viewW / 2 - cam.cx * zoom));
+    const ty = Math.round(dpr * (viewH / 2 - cam.cy * zoom));
     ctx.setTransform(s, 0, 0, s, tx, ty);
-    const v = this.view;
+    const v = this.visible;
     v.x0 = -tx / s - 8;
     v.y0 = -ty / s - 8;
-    v.x1 = v.x0 + (VIEW_W * dpr) / s + 16;
-    v.y1 = v.y0 + (VIEW_H * dpr) / s + 16;
+    v.x1 = v.x0 + (viewW * dpr) / s + 16;
+    v.y1 = v.y0 + (viewH * dpr) / s + 16;
 
     const a = Math.max(0, Math.min(1, alpha));
     this.cur = cur;
@@ -682,7 +705,7 @@ export class Renderer {
         const y0 = k * 16 - gz * 32;
         ctx.save();
         ctx.beginPath();
-        ctx.rect(this.view.x0, y0, this.view.x1 - this.view.x0, 16);
+        ctx.rect(this.visible.x0, y0, this.visible.x1 - this.visible.x0, 16);
         ctx.clip();
         drawGoalRing(ctx, gx, gy, gz, level.goal.radius, this.time, level.theme.accent);
         ctx.restore();

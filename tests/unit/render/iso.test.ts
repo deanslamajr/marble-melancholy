@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  backingScale,
   computeBounds,
   fromScreen,
   project,
@@ -8,7 +9,11 @@ import {
   toScreen,
   unproject,
   VIEW_H,
+  VIEW_MAX_ASPECT,
+  VIEW_MIN_ASPECT,
+  VIEW_PIXEL_BUDGET,
   VIEW_W,
+  viewSizeFor,
   Z_PX,
 } from "../../../src/render/iso";
 
@@ -62,6 +67,53 @@ describe("iso projection", () => {
     const back = fromScreen(500, 250, cam);
     expect(back.sx).toBeCloseTo(110);
     expect(back.sy).toBeCloseTo(40);
+    const view = { w: 1296, h: 540 };
+    expect(toScreen({ sx: 100, sy: 50 }, cam, view)).toEqual({ X: 648, Y: 270 });
+    expect(fromScreen(648, 270, cam, view)).toEqual({ sx: 100, sy: 50 });
+  });
+});
+
+describe("visible view", () => {
+  it("grows the base view to the stage aspect, keeping 960×540 as the minimum", () => {
+    expect(viewSizeFor(1920, 1080)).toEqual({ w: 960, h: 540 });
+    expect(viewSizeFor(734, 343)).toEqual({ w: 1156, h: 540 });
+    expect(viewSizeFor(1440, 900)).toEqual({ w: 960, h: 600 });
+    expect(viewSizeFor(390, 520)).toEqual({ w: 960, h: 1280 });
+    for (const [w, h] of [
+      [734, 343],
+      [863, 360],
+      [1440, 900],
+      [393, 524],
+      [1024, 768],
+    ]) {
+      const v = viewSizeFor(w!, h!);
+      expect(v.w).toBeGreaterThanOrEqual(VIEW_W);
+      expect(v.h).toBeGreaterThanOrEqual(VIEW_H);
+      expect(v.w / v.h).toBeCloseTo(w! / h!, 2);
+    }
+  });
+
+  it("clamps the aspect to 3:4 … 2.4:1 and falls back to the base view without a size", () => {
+    expect(viewSizeFor(3000, 360)).toEqual({ w: 1296, h: 540 });
+    expect(viewSizeFor(360, 3000)).toEqual({ w: 960, h: 1280 });
+    expect(viewSizeFor(0, 0)).toEqual({ w: 960, h: 540 });
+    expect([VIEW_MIN_ASPECT, VIEW_MAX_ASPECT]).toEqual([0.75, 2.4]);
+  });
+
+  it("keeps the DPR cap and at most 1.35× the base view's backing pixels", () => {
+    expect(backingScale({ w: 960, h: 540 }, 3)).toBe(2);
+    expect(backingScale({ w: 960, h: 540 }, 1)).toBe(1);
+    expect(backingScale({ w: 1296, h: 540 }, 3)).toBeCloseTo(2, 12);
+    const base = 960 * 540 * 4;
+    for (const v of [
+      { w: 1296, h: 540 },
+      { w: 960, h: 1280 },
+      { w: 960, h: 960 },
+    ]) {
+      const s = backingScale(v, 3);
+      expect(s).toBeLessThanOrEqual(2);
+      expect(v.w * v.h * s * s).toBeLessThanOrEqual(base * VIEW_PIXEL_BUDGET + 1e-6);
+    }
   });
 });
 

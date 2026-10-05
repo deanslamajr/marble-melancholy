@@ -37,7 +37,14 @@ export function IsoView(props: { ed: EditorState; audio: AudioEngine }) {
       maxSy: VIEW_H / 2,
     });
     camera.free = true;
+    camera.setView(renderer.viewW, renderer.viewH);
     rig.current = { renderer, camera, input };
+    const onResize = () => {
+      renderer.resize();
+      camera.setView(renderer.viewW, renderer.viewH);
+    };
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+    ro?.observe(canvas);
     let raf = 0;
     let last = performance.now();
     const loop = (now: number) => {
@@ -49,6 +56,7 @@ export function IsoView(props: { ed: EditorState; audio: AudioEngine }) {
     raf = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       play.current?.dispose();
       play.current = null;
       input.detach();
@@ -140,17 +148,12 @@ export function IsoView(props: { ed: EditorState; audio: AudioEngine }) {
   }, [ed, audio, playing]);
 
   const dragRef = useRef<{ x: number; y: number } | null>(null);
-  const scale = () => {
-    const c = canvasRef.current!;
-    return VIEW_W / c.getBoundingClientRect().width;
-  };
 
   return (
     <div class="viewport iso" data-testid="iso-view">
       <canvas
         ref={canvasRef}
         tabIndex={0}
-        style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}
         onPointerDown={(e) => {
           if (play.current) return;
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -160,7 +163,7 @@ export function IsoView(props: { ed: EditorState; audio: AudioEngine }) {
           const d = dragRef.current;
           const r = rig.current;
           if (!d || !r || play.current) return;
-          const k = scale();
+          const { k } = r.renderer.clientToView(e.clientX, e.clientY);
           r.camera.pan((e.clientX - d.x) * k, (e.clientY - d.y) * k);
           dragRef.current = { x: e.clientX, y: e.clientY };
         }}
@@ -169,13 +172,8 @@ export function IsoView(props: { ed: EditorState; audio: AudioEngine }) {
           const r = rig.current;
           if (!r || play.current) return;
           e.preventDefault();
-          const rect = canvasRef.current!.getBoundingClientRect();
-          const k = scale();
-          r.camera.zoomAt(
-            e.deltaY < 0 ? 1.1 : 1 / 1.1,
-            (e.clientX - rect.left) * k,
-            (e.clientY - rect.top) * k,
-          );
+          const p = r.renderer.clientToView(e.clientX, e.clientY);
+          r.camera.zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, p.X, p.Y);
         }}
         onContextMenu={(e) => e.preventDefault()}
       />

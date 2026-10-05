@@ -5,7 +5,7 @@ import { FixedStepper } from "../core/fixedStep";
 import { InputManager } from "../input/InputManager";
 import type { CompiledLevel, EntityType } from "../level/types";
 import { LevelLoader } from "../levels/loader";
-import { Camera } from "../render/camera";
+import { Camera, LeaveBehindRule } from "../render/camera";
 import { Renderer } from "../render/Renderer";
 import { TICK_HZ } from "../sim/constants";
 import { RaceSim } from "../sim/race";
@@ -109,6 +109,7 @@ export class GameController {
   readonly audio = new AudioEngine();
   private renderer: Renderer | null = null;
   private camera: Camera | null = null;
+  private readonly leaveBehind = new LeaveBehindRule();
   private canvas: HTMLCanvasElement | null = null;
   private readonly stepper = new FixedStepper(120, 8);
 
@@ -188,6 +189,7 @@ export class GameController {
 
   resize(): void {
     this.renderer?.resize();
+    this.syncView();
   }
 
   start(): void {
@@ -374,6 +376,7 @@ export class GameController {
     this.cur = this.sim.snapshot();
     this.prev = this.cur;
     this.camera?.snapTo(this.cur);
+    this.leaveBehind.reset();
     const hazards = [...new Set(level.entities.map((e) => e.type))];
     this.intro.value = {
       number: session.mode === "course" ? session.raceNumber : null,
@@ -395,6 +398,11 @@ export class GameController {
     this.renderer.setLevel(level);
     if (this.camera) this.camera.setBounds(level.bounds);
     else this.camera = new Camera(level.bounds);
+    this.syncView();
+  }
+
+  private syncView(): void {
+    if (this.renderer && this.camera) this.camera.setView(this.renderer.viewW, this.renderer.viewH);
   }
 
   pause(): void {
@@ -582,6 +590,10 @@ export class GameController {
       this.prev = this.cur;
       this.cur = sim.snapshot();
       for (const e of events) allEvents.push(e);
+      if (sim.playerCount === 2) {
+        const trailing = this.leaveBehind.tick(this.cur);
+        if (trailing !== null) sim.leaveBehind(trailing);
+      }
       this.handleSimEvents(events);
       if (this.state.value !== "countdown" && this.state.value !== "racing") break;
     }
@@ -590,10 +602,7 @@ export class GameController {
       if (this.cur) this.renderer?.handleEvents(allEvents, this.cur);
     }
     if (this.cur) this.audio.updateFrame(this.cur, sim.level);
-    if (this.cur && this.camera) {
-      const trailing = this.camera.update(this.cur, dt);
-      if (trailing !== null && sim.playerCount === 2) sim.leaveBehind(trailing);
-    }
+    if (this.cur && this.camera) this.camera.update(this.cur, dt);
     this.timeWarnings();
     this.updateHud();
     this.draw(alpha, dt);

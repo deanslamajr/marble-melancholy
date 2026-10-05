@@ -35,24 +35,40 @@ button {
   color: inherit;
 }
 
-/* ---------- letterboxed 16:9 stage ---------- */
+/* ---------- stage: fills the screen between 3:4 and 2.4:1, letterboxed beyond (R16) ---------- */
 
 .stage-wrap {
+  /* Dynamic viewport units keep the stage inside mobile browser toolbars. */
+  --vh: 100dvh;
+  /* The aspect limits match VIEW_MIN_ASPECT and VIEW_MAX_ASPECT in src/render/iso.ts. */
+  --stage-w: min(100vw, calc(var(--vh) * 2.4));
+  --stage-h: min(var(--vh), calc(100vw * 4 / 3));
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
   background: #05060d;
+  touch-action: none;
+}
+@supports not (height: 100dvh) {
+  .stage-wrap {
+    --vh: 100vh;
+  }
 }
 
 .stage {
   position: relative;
-  width: min(100vw, calc(100vh * 16 / 9));
-  height: min(100vh, calc(100vw * 9 / 16));
-  /* Dynamic viewport units keep the stage inside mobile browser toolbars. */
-  width: min(100vw, calc(100dvh * 16 / 9));
-  height: min(100dvh, calc(100vw * 9 / 16));
+  width: var(--stage-w);
+  height: var(--stage-h);
   container-type: size;
+  /* Overlay units: 1% of the height and width of the largest 16:9 box inside the stage. */
+  --uh: min(1cqh, calc(1cqw * 9 / 16));
+  --uw: min(1cqw, calc(1cqh * 16 / 9));
+  /* Safe-area insets that reach into the stage (zero where letterbox bars already clear them). */
+  --safe-t: max(0px, calc(env(safe-area-inset-top, 0px) - (var(--vh) - var(--stage-h)) / 2));
+  --safe-b: max(0px, calc(env(safe-area-inset-bottom, 0px) - (var(--vh) - var(--stage-h)) / 2));
+  --safe-l: max(0px, calc(env(safe-area-inset-left, 0px) - (100vw - var(--stage-w)) / 2));
+  --safe-r: max(0px, calc(env(safe-area-inset-right, 0px) - (100vw - var(--stage-w)) / 2));
   overflow: hidden;
   background: var(--bg);
   user-select: none;
@@ -62,7 +78,8 @@ button {
 .rotate-hint {
   display: none;
   position: absolute;
-  top: calc(25% - 1em);
+  /* Centred in the bar above the stage. */
+  top: calc((var(--vh) - var(--stage-h)) / 4 - 0.6em);
   left: 0;
   right: 0;
   text-align: center;
@@ -71,7 +88,8 @@ button {
   color: var(--dim);
   pointer-events: none;
 }
-@media (orientation: portrait) and (pointer: coarse) {
+/* Only where the 3:4 stage leaves a bar tall enough for the hint. */
+@media (orientation: portrait) and (pointer: coarse) and (max-aspect-ratio: 2/3) {
   .rotate-hint {
     display: block;
   }
@@ -90,22 +108,22 @@ canvas.world {
 .px {
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  text-shadow: 0.2cqh 0.2cqh 0 rgba(0, 0, 0, 0.75);
+  text-shadow: calc(0.2 * var(--uh)) calc(0.2 * var(--uh)) 0 rgba(0, 0, 0, 0.75);
   margin: 0;
   font-weight: 700;
   line-height: 1.15;
 }
 .px-s {
-  font-size: 2.4cqh;
+  font-size: calc(2.4 * var(--uh));
 }
 .px-m {
-  font-size: 3.4cqh;
+  font-size: calc(3.4 * var(--uh));
 }
 .px-l {
-  font-size: 5cqh;
+  font-size: calc(5 * var(--uh));
 }
 .px-xl {
-  font-size: 8.5cqh;
+  font-size: calc(8.5 * var(--uh));
 }
 .tone-dim {
   color: var(--dim);
@@ -144,8 +162,8 @@ canvas.world {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2cqh;
-  padding: 4cqh 4cqw;
+  gap: calc(2 * var(--uh));
+  padding: calc(4 * var(--uh)) calc(4 * var(--uw));
   pointer-events: auto;
 }
 
@@ -158,7 +176,7 @@ canvas.world {
 }
 
 .card > * {
-  max-width: 90cqw;
+  max-width: calc(90 * var(--uw));
 }
 .card {
   background: radial-gradient(ellipse at center, rgba(5, 6, 13, 0.75), rgba(5, 6, 13, 0.25) 70%);
@@ -169,10 +187,10 @@ canvas.world {
 }
 .title-logo {
   text-align: center;
-  margin-bottom: 2cqh;
+  margin-bottom: calc(2 * var(--uh));
 }
 .logo-line {
-  font-size: 11cqh;
+  font-size: calc(11 * var(--uh));
   line-height: 1;
   color: #cfe0ff;
 }
@@ -182,18 +200,18 @@ canvas.world {
 }
 .version {
   position: absolute;
-  right: 2cqw;
-  bottom: 2cqh;
+  right: calc(2 * var(--uw));
+  bottom: calc(2 * var(--uh));
 }
 .error-line {
-  max-width: 80cqw;
+  max-width: calc(80 * var(--uw));
 }
 .feedback-link {
   position: absolute;
-  left: 2cqw;
-  bottom: 2cqh;
-  padding: 1cqh 1cqw;
-  font-size: 2.6cqh;
+  left: calc(2 * var(--uw));
+  bottom: calc(2 * var(--uh));
+  padding: calc(1 * var(--uh)) calc(1 * var(--uw));
+  font-size: calc(2.6 * var(--uh));
   color: var(--dim);
   text-decoration: none;
   letter-spacing: 0.08em;
@@ -216,22 +234,22 @@ canvas.world {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6cqh;
-  min-width: 40cqw;
+  gap: calc(0.6 * var(--uh));
+  min-width: calc(40 * var(--uw));
 }
 .menu-item {
   width: 100%;
   display: flex;
   align-items: baseline;
-  gap: 1.5cqw;
+  gap: calc(1.5 * var(--uw));
   background: transparent;
   border: 0;
-  padding: 0.8cqh 1.5cqw;
-  font-size: 3.6cqh;
+  padding: calc(0.8 * var(--uh)) calc(1.5 * var(--uw));
+  font-size: calc(3.6 * var(--uh));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  text-shadow: 0.2cqh 0.2cqh 0 rgba(0, 0, 0, 0.75);
+  text-shadow: calc(0.2 * var(--uh)) calc(0.2 * var(--uh)) 0 rgba(0, 0, 0, 0.75);
   cursor: pointer;
   text-align: left;
 }
@@ -244,21 +262,21 @@ canvas.world {
   cursor: default;
 }
 .menu-caret {
-  width: 2cqw;
+  width: calc(2 * var(--uw));
   display: inline-block;
 }
 .menu-hint {
   margin-left: auto;
-  font-size: 2.2cqh;
+  font-size: calc(2.2 * var(--uh));
   color: var(--dim);
   text-transform: none;
 }
 
 .btn {
   background: var(--panel-solid);
-  border: 0.25cqh solid var(--line);
-  padding: 1cqh 2.4cqw;
-  font-size: 2.8cqh;
+  border: calc(0.25 * var(--uh)) solid var(--line);
+  padding: calc(1 * var(--uh)) calc(2.4 * var(--uw));
+  font-size: calc(2.8 * var(--uh));
   font-weight: 700;
   letter-spacing: 0.08em;
   cursor: pointer;
@@ -269,8 +287,8 @@ canvas.world {
   outline: none;
 }
 .btn.small {
-  font-size: 2.2cqh;
-  padding: 0.5cqh 1.4cqw;
+  font-size: calc(2.2 * var(--uh));
+  padding: calc(0.5 * var(--uh)) calc(1.4 * var(--uw));
 }
 .btn.ghost {
   background: transparent;
@@ -286,19 +304,19 @@ canvas.world {
 .settings-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.4cqh 3cqw;
-  width: min(90cqw, 1000px);
+  gap: calc(1.4 * var(--uh)) calc(3 * var(--uw));
+  width: min(calc(90 * var(--uw)), 1000px);
 }
 .field {
   display: flex;
   align-items: center;
-  gap: 1.2cqw;
-  font-size: 2.4cqh;
+  gap: calc(1.2 * var(--uw));
+  font-size: calc(2.4 * var(--uh));
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .field-label {
-  min-width: 14cqw;
+  min-width: calc(14 * var(--uw));
   color: var(--dim);
 }
 .field input[type="range"] {
@@ -306,48 +324,48 @@ canvas.world {
   accent-color: var(--accent);
 }
 .field-value {
-  min-width: 6cqw;
+  min-width: calc(6 * var(--uw));
   text-align: right;
 }
 .toggle {
   display: flex;
-  gap: 0.4cqw;
+  gap: calc(0.4 * var(--uw));
 }
 .toggle button {
   background: transparent;
-  border: 0.2cqh solid var(--line);
-  padding: 0.4cqh 1cqw;
+  border: calc(0.2 * var(--uh)) solid var(--line);
+  padding: calc(0.4 * var(--uh)) calc(1 * var(--uw));
   cursor: pointer;
-  font-size: 2.2cqh;
+  font-size: calc(2.2 * var(--uh));
 }
 .toggle button.on {
   background: var(--accent);
   color: #111;
 }
 .controls-help {
-  font-size: 2.1cqh;
+  font-size: calc(2.1 * var(--uh));
   border-collapse: collapse;
   color: var(--dim);
 }
 .controls-help th {
   text-align: right;
-  padding: 0.3cqh 1.2cqw;
+  padding: calc(0.3 * var(--uh)) calc(1.2 * var(--uw));
   color: var(--ink);
 }
 
 .list {
   display: flex;
   flex-direction: column;
-  gap: 0.6cqh;
-  width: min(90cqw, 1000px);
+  gap: calc(0.6 * var(--uh));
+  width: min(calc(90 * var(--uw)), 1000px);
 }
 .list-row {
   display: flex;
   align-items: center;
-  gap: 1.4cqw;
-  padding: 0.6cqh 1cqw;
+  gap: calc(1.4 * var(--uw));
+  padding: calc(0.6 * var(--uh)) calc(1 * var(--uw));
   background: rgba(255, 255, 255, 0.04);
-  font-size: 2.4cqh;
+  font-size: calc(2.4 * var(--uh));
 }
 .list-row .name {
   flex: 1;
@@ -355,23 +373,23 @@ canvas.world {
 }
 .list-row .meta {
   color: var(--dim);
-  min-width: 10cqw;
+  min-width: calc(10 * var(--uw));
 }
 .row-buttons {
   display: flex;
-  gap: 1.5cqw;
+  gap: calc(1.5 * var(--uw));
 }
 .fixtures {
-  width: min(90cqw, 1000px);
-  font-size: 2.2cqh;
+  width: min(calc(90 * var(--uw)), 1000px);
+  font-size: calc(2.2 * var(--uh));
   color: var(--dim);
 }
 .list-row .meta.tier,
 .list-row .meta.quick {
   min-width: 0;
-  font-size: 1.9cqh;
-  padding: 0.2cqh 0.6cqw;
-  border: 0.2cqh solid var(--line);
+  font-size: calc(1.9 * var(--uh));
+  padding: calc(0.2 * var(--uh)) calc(0.6 * var(--uw));
+  border: calc(0.2 * var(--uh)) solid var(--line);
 }
 .list-row .meta.tier-easy {
   color: #7cf2c8;
@@ -389,24 +407,24 @@ canvas.world {
 .gen-seed {
   display: flex;
   align-items: center;
-  gap: 1cqw;
+  gap: calc(1 * var(--uw));
 }
 .gen-seed input {
   font: inherit;
-  font-size: 2.6cqh;
-  width: 16cqw;
-  padding: 0.4cqh 0.8cqw;
+  font-size: calc(2.6 * var(--uh));
+  width: calc(16 * var(--uw));
+  padding: calc(0.4 * var(--uh)) calc(0.8 * var(--uw));
   background: rgba(255, 255, 255, 0.06);
   color: var(--ink);
-  border: 0.2cqh solid var(--line);
+  border: calc(0.2 * var(--uh)) solid var(--line);
   letter-spacing: 0.08em;
 }
 .gen-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.8cqh;
-  min-height: 12cqh;
+  gap: calc(0.8 * var(--uh));
+  min-height: calc(12 * var(--uh));
   justify-content: center;
 }
 
@@ -415,15 +433,15 @@ canvas.world {
 .scores,
 .results {
   border-collapse: collapse;
-  font-size: 3.2cqh;
+  font-size: calc(3.2 * var(--uh));
   font-weight: 700;
   letter-spacing: 0.06em;
-  text-shadow: 0.2cqh 0.2cqh 0 rgba(0, 0, 0, 0.75);
+  text-shadow: calc(0.2 * var(--uh)) calc(0.2 * var(--uh)) 0 rgba(0, 0, 0, 0.75);
 }
 .scores td,
 .results td,
 .results th {
-  padding: 0.3cqh 1.4cqw;
+  padding: calc(0.3 * var(--uh)) calc(1.4 * var(--uw));
 }
 .scores .score,
 .results td {
@@ -442,7 +460,7 @@ canvas.world {
 .results tr.strong td,
 .results tr.strong th {
   color: var(--accent);
-  border-top: 0.2cqh solid var(--line);
+  border-top: calc(0.2 * var(--uh)) solid var(--line);
 }
 .scores tr.hl {
   color: var(--accent);
@@ -450,15 +468,15 @@ canvas.world {
 
 .initials-entry {
   display: flex;
-  gap: 1.4cqw;
+  gap: calc(1.4 * var(--uw));
 }
 .initial {
-  font-size: 9cqh;
+  font-size: calc(9 * var(--uh));
   font-weight: 700;
-  width: 9cqh;
+  width: calc(9 * var(--uh));
   background: rgba(255, 255, 255, 0.05);
   border: 0;
-  border-bottom: 0.6cqh solid transparent;
+  border-bottom: calc(0.6 * var(--uh)) solid transparent;
   cursor: pointer;
 }
 .initial.active {
@@ -479,18 +497,18 @@ canvas.world {
 }
 .intro-times {
   display: flex;
-  gap: 4cqw;
+  gap: calc(4 * var(--uw));
 }
 .hazards {
   display: flex;
   flex-wrap: wrap;
-  gap: 1cqw;
+  gap: calc(1 * var(--uw));
   justify-content: center;
 }
 .hazard {
-  font-size: 2.2cqh;
-  padding: 0.3cqh 1cqw;
-  border: 0.2cqh solid var(--line);
+  font-size: calc(2.2 * var(--uh));
+  padding: calc(0.3 * var(--uh)) calc(1 * var(--uw));
+  border: calc(0.2 * var(--uh)) solid var(--line);
   letter-spacing: 0.08em;
 }
 
@@ -502,13 +520,13 @@ canvas.world {
 .hud-row {
   display: flex;
   justify-content: space-between;
-  padding: 2cqh 2.5cqw;
+  padding: calc(2 * var(--uh)) calc(2.5 * var(--uw));
 }
 .hud-player {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.3cqh;
+  gap: calc(0.3 * var(--uh));
 }
 .hud-p2 {
   align-items: flex-end;
@@ -519,7 +537,7 @@ canvas.world {
 }
 .hud-finish {
   position: absolute;
-  top: 3cqh;
+  top: calc(3 * var(--uh));
   left: 50%;
   transform: translateX(-50%);
 }
@@ -530,14 +548,14 @@ canvas.world {
   place-items: center;
 }
 .countdown .px {
-  font-size: 18cqh;
+  font-size: calc(18 * var(--uh));
   color: var(--accent);
 }
 .fps {
   position: absolute;
-  right: 1cqw;
-  bottom: 1cqh;
-  font-size: 2cqh;
+  right: calc(1 * var(--uw));
+  bottom: calc(1 * var(--uh));
+  font-size: calc(2 * var(--uh));
   color: var(--dim);
 }
 
@@ -558,13 +576,13 @@ canvas.world {
 }
 .touch-buttons {
   position: absolute;
-  right: 2cqw;
-  top: 2cqh;
+  right: calc(2 * var(--uw));
+  top: calc(2 * var(--uh));
 }
 .touch-pause {
-  font-size: 4cqh;
-  width: 9cqh;
-  height: 9cqh;
+  font-size: calc(4 * var(--uh));
+  width: calc(9 * var(--uh));
+  height: calc(9 * var(--uh));
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.35);
   background: rgba(0, 0, 0, 0.3);
@@ -1037,8 +1055,7 @@ canvas.world {
 .viewport.iso canvas {
   position: static;
   width: 100%;
-  height: auto;
-  max-height: 100%;
+  height: 100%;
   object-fit: contain;
   outline: none;
 }
