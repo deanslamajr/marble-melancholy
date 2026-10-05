@@ -21,7 +21,7 @@ export function RaceIntro() {
   return (
     <div class="overlay center-col race-intro" data-testid="race-intro">
       <PixelText size="m" tone="dim">
-        {info.custom ? "CUSTOM RACE" : `RACE ${info.number}`}
+        {info.custom ? info.label : `RACE ${info.number}`}
       </PixelText>
       <PixelText size="xl">{info.name.toUpperCase()}</PixelText>
       <div class="intro-times">

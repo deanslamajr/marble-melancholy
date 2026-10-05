@@ -154,6 +154,11 @@ describe("router", () => {
     { name: "settings" },
     { name: "builder" },
     { name: "builderDraft", draftId: "d-123" },
+    { name: "extras" },
+    { name: "playExtra", id: "puddle-hop" },
+    { name: "generate" },
+    { name: "generate", difficulty: "hard", seed: 42 },
+    { name: "playGenerated", difficulty: "medium", seed: 4294967295 },
   ];
 
   it("routeHash and parseRoute round-trip", () => {
@@ -165,5 +170,22 @@ describe("router", () => {
     expect(parseRoute("#")).toEqual({ name: "title" });
     expect(parseRoute("#/play/")).toEqual({ name: "play" });
     expect(parseRoute("#/nowhere")).toEqual({ name: "title" });
+  });
+
+  it("generated-course URLs are shareable and malformed ones fall back to the generator", () => {
+    expect(parseRoute("#/play/generated/medium/123")).toEqual({
+      name: "playGenerated",
+      difficulty: "medium",
+      seed: 123,
+    });
+    expect(parseRoute("#/play/generated/HARD/7")).toEqual({
+      name: "playGenerated",
+      difficulty: "hard",
+      seed: 7,
+    });
+    expect(parseRoute("#/play/generated/insane/7")).toEqual({ name: "generate" });
+    expect(parseRoute("#/play/generated/easy/-1")).toEqual({ name: "generate" });
+    expect(parseRoute("#/play/generated/easy/4294967296")).toEqual({ name: "generate" });
+    expect(parseRoute("#/generate/easy/x")).toEqual({ name: "generate" });
   });
 });

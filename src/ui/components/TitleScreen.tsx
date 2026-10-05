@@ -13,6 +13,8 @@ export function TitleScreen() {
       onSelect: () => navigate({ name: "play" }),
       disabled: c.courseLevels.length === 0,
     },
+    { label: "EXTRA COURSES", onSelect: () => navigate({ name: "extras" }) },
+    { label: "GENERATE COURSE", onSelect: () => navigate({ name: "generate" }) },
     { label: "CUSTOM RACES", onSelect: () => navigate({ name: "custom" }) },
     { label: "LEVEL BUILDER", onSelect: () => navigate({ name: "builder" }) },
     { label: "HIGH SCORES", onSelect: () => navigate({ name: "scores" }) },

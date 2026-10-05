@@ -13,6 +13,8 @@ import {
   type CustomLevelRecord,
   type DraftRecord,
 } from "../storage/levelsStore";
+import { DIFFICULTIES, type Difficulty } from "../level/generate/generate";
+import { generateLevel } from "../level/generate/pipeline";
 import { newDraftSource } from "./editor/commands";
 import { downloadText, importText, pickFile, sourceFromCompiled } from "./editor/io";
 import {
@@ -40,12 +42,12 @@ function uniqueLevelId(base: string, taken: Set<string>): string {
   }
 }
 
-async function createDraft(source: DraftRecord["source"]): Promise<DraftRecord> {
+async function createDraft(source: DraftRecord["source"], solved = false): Promise<DraftRecord> {
   return saveDraft({
     id: newDraftId(),
     name: source.name,
     source,
-    solved: false,
+    solved,
     gridW: source.grid.width,
     gridH: source.grid.height,
   });
@@ -119,6 +121,35 @@ export function BuilderHome() {
       setOpening(false);
     }
   };
+  const [genDifficulty, setGenDifficulty] = useState<Difficulty>("medium");
+  const [genSeed, setGenSeed] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const onGenerate = async () => {
+    if (generating) return;
+    const text = genSeed.trim();
+    if (text !== "" && (!/^\d{1,10}$/.test(text) || Number(text) > 0xffffffff)) {
+      setMessage("Seed must be a whole number from 0 to 4294967295 (or empty for a random one)");
+      return;
+    }
+    const seed = text === "" ? Math.floor(Math.random() * 1_000_000_000) : Number(text);
+    setGenerating(true);
+    try {
+      const r = await generateLevel({ seed, difficulty: genDifficulty });
+      if (!r.ok) {
+        setMessage(r.error);
+        return;
+      }
+      const source = structuredClone(r.source);
+      source.id = uniqueLevelId(source.id, takenIds());
+      const d = await createDraft(source, true);
+      navigate({ name: "builderDraft", draftId: d.id });
+    } catch (e) {
+      setMessage(`Could not generate: ${(e as Error).message}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const groups = EXAMPLE_GROUPS.map((g) => ({
     g,
     items: examples.filter((e) => e.group === g),
@@ -171,6 +202,43 @@ export function BuilderHome() {
           <span class="dim">A copy you can edit; the shipped level is not changed.</span>
         </div>
       )}
+      <div class="row" data-testid="generate">
+        <label>
+          Generate:{" "}
+          <select
+            value={genDifficulty}
+            onChange={(e) => setGenDifficulty((e.target as HTMLSelectElement).value as Difficulty)}
+            data-testid="generate-difficulty"
+          >
+            {DIFFICULTIES.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          seed{" "}
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="random"
+            size={11}
+            value={genSeed}
+            onInput={(e) => setGenSeed((e.target as HTMLInputElement).value)}
+            data-testid="generate-seed"
+          />
+        </label>
+        <button
+          class="bbtn"
+          disabled={generating}
+          onClick={() => void onGenerate()}
+          data-testid="generate-draft"
+        >
+          {generating ? "Generating…" : "Generate draft"}
+        </button>
+        <span class="dim">A new solved draft from a procedural course.</span>
+      </div>
       {message && (
         <p class="toast" role="status">
           {message}

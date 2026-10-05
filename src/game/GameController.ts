@@ -47,6 +47,8 @@ export interface HudState {
 
 export interface RaceIntroInfo {
   number: number | null;
+  /** Kicker above a single race's name ("CUSTOM RACE", "EXTRA COURSE", …). */
+  label: string;
   name: string;
   timeSec: number[];
   hazards: EntityType[];
@@ -63,6 +65,16 @@ export interface RaceResults {
     bestSec: number | null;
     newBest: boolean;
   };
+}
+
+/** Single-race options for extras and generated courses. */
+export interface CustomRaceOptions {
+  /** Kicker on the intro card; default "CUSTOM RACE". */
+  label?: string;
+  /** Stores a finishing time and reports whether it is a new best; default: the custom store. */
+  recordBest?: (id: string, ticks: number) => Promise<boolean> | boolean;
+  /** Best time before this race, shown on the result card. */
+  bestTicks?: number | null;
 }
 
 export interface FinalCard {
@@ -118,6 +130,7 @@ export class GameController {
   private lastNow = -1;
   private lowTimeSecond: number[] = [];
   private customOnExit: (() => void) | null = null;
+  private customOpts: CustomRaceOptions = {};
   private raceEpoch = 0;
   private attractEpoch = 0;
 
@@ -333,9 +346,10 @@ export class GameController {
   }
 
   /** One-race custom mode; `onExit` returns to the custom list. */
-  startCustom(level: CompiledLevel, onExit?: () => void): void {
+  startCustom(level: CompiledLevel, onExit?: () => void, opts: CustomRaceOptions = {}): void {
     this.session = new GameSession("custom", 1, [level]);
     this.customOnExit = onExit ?? null;
+    this.customOpts = opts;
     this.input.setPlayers(1);
     this.beginRaceIntro();
   }
@@ -363,6 +377,7 @@ export class GameController {
     const hazards = [...new Set(level.entities.map((e) => e.type))];
     this.intro.value = {
       number: session.mode === "course" ? session.raceNumber : null,
+      label: session.mode === "course" ? "" : (this.customOpts.label ?? "CUSTOM RACE"),
       name: level.name,
       timeSec: start.map((t) => displaySeconds(t)),
       hazards,
@@ -423,6 +438,7 @@ export class GameController {
     this.go("custom");
     const cb = this.customOnExit;
     this.customOnExit = null;
+    this.customOpts = {};
     cb?.();
   }
 
@@ -631,19 +647,24 @@ export class GameController {
       const p = sim.players[0]!;
       const finished = p.marble.status === "finished";
       const ticks = elapsedTicks(p, session.currentStartTicks[0]!);
+      const opts = this.customOpts;
+      const prevBest = opts.bestTicks ?? null;
       const results: RaceResults = {
         rows: [raceBreakdown(p, sim.level as CompiledLevel)],
         custom: {
           finished,
           timeSec: ticks / TICK_HZ,
           par: sim.level.timing.par,
-          bestSec: null,
+          bestSec: prevBest === null ? null : prevBest / TICK_HZ,
           newBest: false,
         },
       };
       this.results.value = results;
       if (finished) {
-        void recordBestTicks(sim.level.id, ticks)
+        const record = opts.recordBest ?? recordBestTicks;
+        if (prevBest === null || ticks < prevBest) opts.bestTicks = ticks;
+        void Promise.resolve()
+          .then(() => record(sim.level.id, ticks))
           .then((newBest) => {
             if (this.results.value === results) {
               this.results.value = { ...results, custom: { ...results.custom!, newBest } };

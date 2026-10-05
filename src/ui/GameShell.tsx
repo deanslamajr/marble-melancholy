@@ -3,9 +3,12 @@ import { navigate, route, type Route } from "../app/router";
 import type { GameController } from "../game/GameController";
 import type { GameState } from "../game/states";
 import { LevelLoader } from "../levels/loader";
+import { bestTicksFor, recordBestTime } from "../storage/bestTimes";
 import { getCustomLevel } from "../storage/levelsStore";
 import { CourseComplete } from "./components/CourseComplete";
 import { CustomLevels } from "./components/CustomLevels";
+import { ExtraCourses } from "./components/ExtraCourses";
+import { GenerateScreen } from "./components/GenerateScreen";
 import { GameOver } from "./components/GameOver";
 import { HighScoreEntry } from "./components/HighScoreEntry";
 import { HighScoreTable } from "./components/HighScoreTable";
@@ -65,7 +68,9 @@ export function GameShell(props: { controller: GameController }) {
 
   // Route ⇄ state sync: route changes drive menu states; game-driven returns to title update the hash.
   useEffect(() => {
-    const routeChanged = prevRoute.current === null || prevRoute.current !== r;
+    // Leaving "boot" counts as a route change so deep links (e.g. shared generated courses) open.
+    const routeChanged =
+      prevRoute.current === null || prevRoute.current !== r || prevState.current === "boot";
     const stateChanged = prevState.current !== state;
     prevRoute.current = r;
     prevState.current = state;
@@ -79,7 +84,13 @@ export function GameShell(props: { controller: GameController }) {
           if (state !== "playerSelect") c.openPlayerSelect();
           break;
         case "custom":
+        case "extras":
+        case "generate":
+        case "playGenerated":
           if (state !== "custom") c.openCustom();
+          break;
+        case "playExtra":
+          void startExtraById(c, r.id);
           break;
         case "scores":
           if (state !== "scores") c.openScores();
@@ -152,7 +163,7 @@ export function GameShell(props: { controller: GameController }) {
             />
           )}
           {state === "scores" && <HighScoreTable onClose={() => navigate({ name: "title" })} />}
-          {state === "custom" && <CustomLevels />}
+          {state === "custom" && <SingleRaceMenu />}
           {inRace && state !== "raceIntro" && <Hud />}
           {state === "raceIntro" && <RaceIntro />}
           {state === "paused" && (
@@ -185,11 +196,36 @@ export function GameShell(props: { controller: GameController }) {
   );
 }
 
+/** The "custom" game state hosts every single-race menu; the route picks which one. */
+function SingleRaceMenu() {
+  const name = route.value.name;
+  if (name === "extras" || name === "playExtra") return <ExtraCourses />;
+  if (name === "generate" || name === "playGenerated") return <GenerateScreen />;
+  return <CustomLevels />;
+}
+
+async function startExtraById(c: GameController, id: string): Promise<void> {
+  try {
+    const level = await LevelLoader.load(id);
+    if (level.course) throw new Error(`${id} is a main-course race`);
+    c.startCustom(level, () => navigate({ name: "extras" }, { replace: true }), {
+      label: "EXTRA COURSE",
+      recordBest: recordBestTime,
+      bestTicks: bestTicksFor(id),
+    });
+  } catch (e) {
+    c.error.value = (e as Error).message;
+    navigate({ name: "extras" }, { replace: true });
+  }
+}
+
 async function startCustomById(c: GameController, id: string): Promise<void> {
   try {
     const rec = await getCustomLevel(id).catch(() => undefined);
     const level = await LevelLoader.load(rec ? rec.level : id);
-    c.startCustom(level, () => navigate({ name: "custom" }, { replace: true }));
+    c.startCustom(level, () => navigate({ name: "custom" }, { replace: true }), {
+      bestTicks: rec?.bestTicks ?? null,
+    });
   } catch (e) {
     c.error.value = (e as Error).message;
     navigate({ name: "custom" }, { replace: true });

@@ -13,7 +13,11 @@ export function Hud() {
         {hud.players.map((p) => (
           <div key={p.index} class={`hud-player hud-p${p.index + 1} ${two ? "" : "solo"}`}>
             <PixelText size="s" tone={two ? (p.index === 0 ? "p1" : "p2") : "dim"}>
-              {two ? `P${p.index + 1}` : hud.raceNumber ? `RACE ${hud.raceNumber}` : "CUSTOM"}
+              {two
+                ? `P${p.index + 1}`
+                : hud.raceNumber
+                  ? `RACE ${hud.raceNumber}`
+                  : (c.intro.value?.label.split(" ")[0] ?? "CUSTOM")}
             </PixelText>
             <PixelText
               size="l"

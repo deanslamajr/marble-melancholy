@@ -366,6 +366,49 @@ canvas.world {
   font-size: 2.2cqh;
   color: var(--dim);
 }
+.list-row .meta.tier,
+.list-row .meta.quick {
+  min-width: 0;
+  font-size: 1.9cqh;
+  padding: 0.2cqh 0.6cqw;
+  border: 0.2cqh solid var(--line);
+}
+.list-row .meta.tier-easy {
+  color: #7cf2c8;
+}
+.list-row .meta.tier-medium {
+  color: var(--accent);
+}
+.list-row .meta.tier-hard {
+  color: #ff6b6b;
+}
+.row-buttons {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.gen-seed {
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+}
+.gen-seed input {
+  font: inherit;
+  font-size: 2.6cqh;
+  width: 16cqw;
+  padding: 0.4cqh 0.8cqw;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  border: 0.2cqh solid var(--line);
+  letter-spacing: 0.08em;
+}
+.gen-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8cqh;
+  min-height: 12cqh;
+  justify-content: center;
+}
 
 /* ---------- scores ---------- */
 

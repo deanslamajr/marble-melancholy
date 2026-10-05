@@ -20,6 +20,11 @@ export function RaceComplete() {
               PAR {cu.par}s {under ? "· UNDER PAR" : ""}
             </PixelText>
             {cu.newBest && <PixelText tone="accent">NEW BEST</PixelText>}
+            {!cu.newBest && cu.bestSec !== null && (
+              <PixelText size="s" tone="dim">
+                BEST {cu.bestSec.toFixed(2)}s
+              </PixelText>
+            )}
           </>
         )}
         <FeedbackLink />
