@@ -4,6 +4,7 @@ import { BUILDER_VERSION } from "../../src/level/version";
 import { buildAllCommand } from "./commands/buildAll";
 import { checkCommand } from "./commands/check";
 import { compileCommand } from "./commands/compile";
+import { generateCommand } from "./commands/generate";
 import { infoCommand } from "./commands/info";
 import { pathCommand } from "./commands/path";
 import { schemaCommand } from "./commands/schema";
@@ -85,6 +86,19 @@ program
   .option("--json")
   .option("--quiet")
   .action((o: Opts) => run(() => buildAllCommand(merge(o))));
+
+program
+  .command("generate")
+  .description("generate a procedural course (validated, solved and stamped like any other level)")
+  .requiredOption("--seed <n>", "integer seed 0..4294967295")
+  .option("--difficulty <d>", "easy | medium | hard", "medium")
+  .option("--theme <id>", "theme id (default: chosen from the seed)")
+  .option("--out <file>", "write the .level.yaml source here (default: stdout)")
+  .option("--compiled <file>", "also write the stamped .level.json here")
+  .option("--attempts <n>", "maximum layout attempts before giving up")
+  .option("--json")
+  .option("--quiet")
+  .action((o: Opts) => run(() => generateCommand(merge(o))));
 
 program
   .command("info")
