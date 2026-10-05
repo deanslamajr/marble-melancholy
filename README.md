@@ -26,7 +26,7 @@ For a production build: `npm run build`, then `npm run preview` (http://localhos
 | P1 keys | Arrow keys or numpad 1–9 (also W A S D while P2 uses I J K L)                     |
 | P2 keys | W A S D or I J K L (Settings)                                                     |
 | Gamepad | Left stick to steer, A confirm, B back, Start pause                               |
-| Touch   | Drag on the left half to steer, tap the right half to pause                       |
+| Touch   | Drag anywhere to steer; tap ❚❚ or quickly tap the right side to pause             |
 
 Reach the goal flag before the timer hits zero. Time left over carries into the next race, plus a
 bonus for finishing. Falling off an edge shatters the marble and costs you the seconds it takes to
@@ -40,6 +40,20 @@ Besides the six-race campaign there are single races:
   from a seed. Play it, regenerate, save it to Custom Races or copy a share link. A link such as
   `#/play/generated/medium/1234` always builds the same course.
 - **Custom Races**: levels you made in the builder, imported, or saved from the generator.
+
+### Phones and full screen
+
+The view widens or grows taller to fill the screen. Wider screens show more of the course, up to
+a 2.4:1 width-to-height ratio, and narrower ones up to 3:4. Two-player races frame and leave
+players behind in the same way on every screen.
+
+- **Android and desktop:** press the corner button on the title screen, or **FULLSCREEN** in the
+  pause menu. On Android, the game also locks to landscape while it is full screen.
+- **iPhone:** Safari has no full-screen mode for web pages, so add the game to the home screen.
+  In Safari, tap **Share** (the square with an arrow), then **Add to Home Screen**, then **Add**.
+  Open the game from the new icon. It then runs full screen, with no browser bars.
+- **Android install:** in Chrome, open the **⋮** menu and tap **Add to Home screen** (or
+  **Install app**). The installed game opens full screen in landscape.
 
 ## Level builder (GUI)
 
@@ -94,6 +108,7 @@ Compiled outputs in `levels/compiled/` are committed; the test suite fails if th
 | `npm run lint`            | ESLint and Prettier check                                                             |
 | `npm run typecheck`       | `tsc` for the app and for tools/tests                                                 |
 | `npm run levels:build`    | Recompile all level sources                                                           |
+| `npm run icons`           | Redraw the home-screen icons in `public/icons/` (drawn in code, no image assets)      |
 
 `?e2e=1` exposes `window.__mm`, a small test API used by Playwright. Design decisions are in
 [`PLAN.md`](PLAN.md) (D01–D37) and [`DECISIONS.md`](DECISIONS.md).
@@ -119,8 +134,9 @@ context `gke_development-262721_us-central1-a_cluster-1`. Override it with `KUBE
 `GCLOUD` if `gcloud` is not on your PATH. Commit before deploying: a build from a tree with
 uncommitted changes is tagged `<sha>-dirty-<time>`.
 
-`index.html` is served with `no-cache`, and the hashed files in `assets/` are cached for a year,
-so players get a new build the next time they load the page.
+`index.html` and `manifest.webmanifest` are served with `no-cache`, the icons in `icons/` for a
+day, and the hashed files in `assets/` for a year, so players get a new build the next time they
+load the page.
 
 If `deploy:status` shows `gateway Programmed=False`, the shared Gateway is rejecting one of its
 routes. While it does, GKE pushes no route changes to the load balancer for any host on it, and

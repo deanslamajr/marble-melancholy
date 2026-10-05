@@ -594,6 +594,35 @@ canvas.world {
   border: 2px solid rgba(255, 255, 255, 0.35);
   background: rgba(0, 0, 0, 0.3);
 }
+.fullscreen-btn {
+  position: absolute;
+  top: calc(2 * var(--uh) + var(--safe-t));
+  right: calc(2 * var(--uw) + var(--safe-r));
+  width: max(36px, calc(7 * var(--uh)));
+  height: max(36px, calc(7 * var(--uh)));
+  padding: 7px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--dim);
+  cursor: pointer;
+}
+.fullscreen-btn:hover,
+.fullscreen-btn:focus-visible {
+  color: var(--ink);
+  border-color: var(--focus);
+}
+.fullscreen-btn svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .abs-ring {
   position: absolute;
   left: 50%;

@@ -29,6 +29,7 @@
     "levels:build": "tsx tools/levelc/cli.ts build-all",
     "levels:check": "tsx tools/levelc/cli.ts check levels/compiled",
     "levels:schema": "tsx tools/levelc/cli.ts schema --out levels/schema",
+    "icons": "tsx tools/icons/generate.ts",
     "mmlevel": "tsx tools/levelc/cli.ts"
   },
   "dependencies": {

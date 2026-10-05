@@ -1,6 +1,7 @@
 import { navigate } from "../../app/router";
 import { BUILD_LABEL, FEEDBACK_URL, openFeedback } from "../../version";
 import { useController } from "../context";
+import { FullscreenButton } from "./FullscreenButton";
 import { MenuList, type MenuItem } from "./MenuList";
 import { PixelText } from "./PixelText";
 
@@ -43,6 +44,7 @@ export function TitleScreen() {
       <PixelText size="s" tone="dim" class="version">
         {BUILD_LABEL}
       </PixelText>
+      <FullscreenButton />
     </div>
   );
 }

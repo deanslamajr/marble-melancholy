@@ -20,6 +20,7 @@ import { AttractOverlay, TitleScreen } from "./components/TitleScreen";
 import { TouchButtons } from "./components/TouchButtons";
 import { VirtualStick } from "./components/VirtualStick";
 import { ControllerContext } from "./context";
+import { watchFullscreen } from "./fullscreen";
 
 const MENU_STATES: readonly GameState[] = [
   "title",
@@ -57,6 +58,7 @@ export function GameShell(props: { controller: GameController }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     c.attachCanvas(canvas, wrapRef.current ?? canvas);
+    watchFullscreen();
     const onResize = () => c.resize();
     window.addEventListener("resize", onResize);
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
