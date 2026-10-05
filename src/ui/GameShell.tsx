@@ -46,6 +46,7 @@ function coarsePointer(): boolean {
 export function GameShell(props: { controller: GameController }) {
   const c = props.controller;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [settingsFromPause, setSettingsFromPause] = useState(false);
   const state = c.state.value;
   const r = route.value;
@@ -55,7 +56,7 @@ export function GameShell(props: { controller: GameController }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    c.attachCanvas(canvas);
+    c.attachCanvas(canvas, wrapRef.current ?? canvas);
     const onResize = () => c.resize();
     window.addEventListener("resize", onResize);
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
@@ -144,11 +145,16 @@ export function GameShell(props: { controller: GameController }) {
 
   return (
     <ControllerContext.Provider value={c}>
-      <div class="stage-wrap">
+      <div class="stage-wrap" ref={wrapRef}>
         <div class="rotate-hint" aria-hidden="true">
           ↻ ROTATE FOR A BIGGER VIEW
         </div>
-        <div class="stage" data-state={state} data-testid="stage">
+        <div
+          class="stage"
+          data-state={state}
+          data-touch={showTouch || undefined}
+          data-testid="stage"
+        >
           <canvas id="world" ref={canvasRef} class="world" onClick={() => c.requestPointerLock()} />
           {state === "title" && <TitleScreen />}
           {state === "attract" && <AttractOverlay />}
@@ -184,14 +190,10 @@ export function GameShell(props: { controller: GameController }) {
           {state === "highScoreTable" && (
             <HighScoreTable testId="highscore-table" onClose={() => c.dismiss()} />
           )}
-          {showTouch && (state === "racing" || state === "countdown") && (
-            <>
-              <VirtualStick />
-              <TouchButtons />
-            </>
-          )}
+          {showTouch && (state === "racing" || state === "countdown") && <TouchButtons />}
           {c.input.absoluteMouse.active && state === "racing" && <div class="abs-ring" />}
         </div>
+        {showTouch && (state === "racing" || state === "countdown") && <VirtualStick />}
       </div>
     </ControllerContext.Provider>
   );

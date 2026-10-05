@@ -3,6 +3,7 @@ import { signal } from "@preact/signals";
 import { AudioEngine } from "../audio/AudioEngine";
 import { FixedStepper } from "../core/fixedStep";
 import { InputManager } from "../input/InputManager";
+import { touchRadiusFor } from "../input/touch";
 import type { CompiledLevel, EntityType } from "../level/types";
 import { LevelLoader } from "../levels/loader";
 import { Camera, LeaveBehindRule } from "../render/camera";
@@ -149,6 +150,7 @@ export class GameController {
       p2Keys: s.p2Keys,
     });
     this.input.onPauseRequest = () => this.pause();
+    this.input.touch.enabled = false;
     this.audio.setVolumes({ master: s.masterVolume, music: s.musicVolume, sfx: s.sfxVolume });
   }
 
@@ -165,15 +167,16 @@ export class GameController {
     this.go("title");
   }
 
-  attachCanvas(canvas: HTMLCanvasElement): void {
+  /** `touchSurface` (default: the canvas) receives the touch stick, e.g. the whole page. */
+  attachCanvas(canvas: HTMLCanvasElement, touchSurface: HTMLElement = canvas): void {
     if (this.canvas === canvas) return;
     this.canvas = canvas;
     this.renderer?.dispose();
     this.renderer = new Renderer(canvas, {
       debug: new URLSearchParams(location.search).has("debug"),
     });
-    this.renderer.resize();
-    this.input.attach(canvas);
+    this.input.attach(canvas, touchSurface);
+    this.resize();
     const lvl = this.sim?.level ?? this.attract?.level ?? this.course[0];
     if (lvl) this.useLevel(lvl as CompiledLevel);
     this.start();
@@ -190,6 +193,9 @@ export class GameController {
   resize(): void {
     this.renderer?.resize();
     this.syncView();
+    if (this.canvas) {
+      this.input.touch.radius = touchRadiusFor(this.canvas.clientWidth, this.canvas.clientHeight);
+    }
   }
 
   start(): void {
@@ -257,6 +263,8 @@ export class GameController {
     }
     this.state.value = next;
     this.phaseTime = 0;
+    // The touch surface spans the whole page, so it only claims touches during play.
+    this.input.touch.enabled = next === "racing" || next === "countdown";
     if (next !== "racing" && next !== "countdown") {
       this.input.exitPointerLock();
       this.audio.silenceContinuous();

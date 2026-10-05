@@ -524,6 +524,11 @@ canvas.world {
   padding: calc(2 * var(--uh) + var(--safe-t)) calc(2.5 * var(--uw) + var(--safe-r))
     calc(2 * var(--uh)) calc(2.5 * var(--uw) + var(--safe-l));
 }
+/* Keep the timers clear of the touch pause button (top right) on both sides. */
+.stage[data-touch] .hud-row {
+  padding-left: calc(3.5 * var(--uw) + 9 * var(--uh) + var(--safe-l));
+  padding-right: calc(3.5 * var(--uw) + 9 * var(--uh) + var(--safe-r));
+}
 .hud-player {
   display: flex;
   flex-direction: column;

@@ -77,7 +77,8 @@ export class InputManager {
     };
   }
 
-  attach(target: HTMLElement): void {
+  /** Mouse input uses `target`; touch input uses `touchTarget`, which may be larger (I13). */
+  attach(target: HTMLElement, touchTarget: HTMLElement = target): void {
     if (this.target === target) return;
     this.detach();
     this.target = target;
@@ -91,7 +92,7 @@ export class InputManager {
     doc.addEventListener("mousemove", this.onMouseMove);
     target.addEventListener("pointermove", this.onPointerMove);
     target.addEventListener("pointerleave", this.onPointerLeave);
-    this.touch.attach(target);
+    this.touch.attach(touchTarget);
     this.locked = doc.pointerLockElement === target;
   }
 

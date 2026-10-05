@@ -11,7 +11,12 @@ import {
 } from "../../../src/input/mapping";
 import { MouseSource } from "../../../src/input/mouse";
 import { GamepadSource, type PadLike } from "../../../src/input/gamepad";
-import { TouchStickSource } from "../../../src/input/touch";
+import {
+  TOUCH_RADIUS_MAX_PX,
+  TOUCH_RADIUS_MIN_PX,
+  TouchStickSource,
+  touchRadiusFor,
+} from "../../../src/input/touch";
 import { InputManager } from "../../../src/input/InputManager";
 import { quantizeInput } from "../../../src/sim/quantize";
 
@@ -197,6 +202,56 @@ describe("TouchStickSource", () => {
     t.end(3, 100);
     expect(pauses).toBe(1);
     expect(t.state.active).toBe(false);
+  });
+
+  it("starts the stick anywhere, including the right-hand zone", () => {
+    const t = new TouchStickSource();
+    let pauses = 0;
+    t.onPauseRequest = () => pauses++;
+    t.start(1, 950, 300, 1000, 0);
+    expect(t.state).toMatchObject({ active: true, originX: 950, originY: 300 });
+    t.move(1, 950, 360);
+    expect(t.tick()).toEqual({ x: 0, y: 1 });
+    t.end(1, 1000);
+    expect(pauses).toBe(0);
+    // A second finger never takes the stick over, and a quick still tap on the left is no pause.
+    t.start(2, 100, 100, 1000, 0);
+    t.start(3, 900, 100, 1000, 0);
+    expect(t.state.originX).toBe(100);
+    t.end(3, 50);
+    expect(pauses).toBe(1);
+    t.end(2, 60);
+    expect(pauses).toBe(1);
+  });
+
+  it("scales the stick radius with the stage within limits", () => {
+    expect(touchRadiusFor(734, 343)).toBe(45);
+    expect(touchRadiusFor(393, 524)).toBe(51);
+    expect(touchRadiusFor(200, 150)).toBe(TOUCH_RADIUS_MIN_PX);
+    expect(touchRadiusFor(2560, 1440)).toBe(TOUCH_RADIUS_MAX_PX);
+    const t = new TouchStickSource();
+    t.radius = 40;
+    t.start(1, 100, 100, 1000);
+    t.radius = 90;
+    t.move(1, 100, 300);
+    expect(t.state).toMatchObject({ radius: 40, knobY: 40 });
+    expect(t.tick()).toEqual({ x: 0, y: 1 });
+    t.move(1, 100, 105);
+    expect(t.tick()).toEqual({ x: 0, y: 0 });
+    t.move(1, 120, 100);
+    expect(t.tick()).toEqual({ x: 0.5, y: 0 });
+  });
+
+  it("ignores touches while disabled and releases the stick on disable", () => {
+    const t = new TouchStickSource();
+    t.start(1, 100, 100, 1000);
+    t.enabled = false;
+    expect(t.state.active).toBe(false);
+    t.start(2, 100, 100, 1000);
+    expect(t.state.active).toBe(false);
+    t.enabled = true;
+    t.start(3, 100, 100, 1000);
+    expect(t.state.active).toBe(true);
   });
 });
 
