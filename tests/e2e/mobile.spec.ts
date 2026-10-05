@@ -187,7 +187,7 @@ test("the pause button stays clear of both players' timers", async ({ page }, in
 
 test("the fullscreen toggle enters and leaves fullscreen where the API exists", async ({
   page,
-}, info) => {
+}) => {
   test.skip(engine(page) !== "chromium", "desktop WebKit says nothing about iPhone Safari");
   await openGame(page);
   const toggle = page.getByTestId("fullscreen-toggle");
