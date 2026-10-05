@@ -32,6 +32,15 @@ Reach the goal flag before the timer hits zero. Time left over carries into the 
 bonus for finishing. Falling off an edge shatters the marble and costs you the seconds it takes to
 respawn. Two players race at once on a shared screen.
 
+Besides the six-race campaign there are single races:
+
+- **Extra Courses** (`#/extras`): eight shipped courses from easy to hard, three of them short
+  enough for a phone. Each keeps your best time. Direct link: `#/play/extra/<id>`.
+- **Generate Course** (`#/generate`): pick Easy, Medium or Hard and get a new, solvable course
+  from a seed. Play it, regenerate, save it to Custom Races or copy a share link. A link such as
+  `#/play/generated/medium/1234` always builds the same course.
+- **Custom Races**: levels you made in the builder, imported, or saved from the generator.
+
 ## Level builder (GUI)
 
 Open **Level Builder** from the title screen, or go to `#/builder`. Press **+ New level** to get a
@@ -50,17 +59,22 @@ new draft** to edit a copy of it. Then:
 
 `mmlevel` (run with `npm run mmlevel -- <command>`) does everything the GUI does from the shell:
 
-| Command                             | What it does                                                         |
-| ----------------------------------- | -------------------------------------------------------------------- |
-| `validate <src...>`                 | Parse and validate sources; prints `file:(x,y): error E0NN: …`       |
-| `testplay <file>`                   | Run the level's solution; prints `GOAL at 3.70 s` or why it failed   |
-| `trace <file> [--every 30]`         | Tick-by-tick marble position, speed, status and current waypoint     |
-| `path <file>`                       | ASCII map of the path the solution took, with death cells            |
-| `compile <src...> [--out dir]`      | Validate, solve and stamp; writes `.level.json`                      |
-| `build-all`                         | Compile everything in `levels/src` into `levels/compiled` + manifest |
-| `check <compiled...> [--no-replay]` | Verify schema, stamp and embedded replay of compiled levels          |
-| `info <file>`                       | Summary of a source or compiled level                                |
-| `schema [--out dir]`                | Write JSON Schemas for both formats                                  |
+| Command                              | What it does                                                         |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| `validate <src...>`                  | Parse and validate sources; prints `file:(x,y): error E0NN: …`       |
+| `testplay <file>`                    | Run the level's solution; prints `GOAL at 3.70 s` or why it failed   |
+| `trace <file> [--every 30]`          | Tick-by-tick marble position, speed, status and current waypoint     |
+| `path <file>`                        | ASCII map of the path the solution took, with death cells            |
+| `compile <src...> [--out dir]`       | Validate, solve and stamp; writes `.level.json`                      |
+| `build-all`                          | Compile everything in `levels/src` into `levels/compiled` + manifest |
+| `check <compiled...> [--no-replay]`  | Verify schema, stamp and embedded replay of compiled levels          |
+| `info <file>`                        | Summary of a source or compiled level                                |
+| `schema [--out dir]`                 | Write JSON Schemas for both formats                                  |
+| `generate --seed N [--difficulty d]` | Generate a solvable course (easy, medium or hard) from a seed        |
+
+`generate` prints the YAML source to stdout; `--out file.level.yaml` writes it instead,
+`--compiled file.level.json` also writes the stamped level, and `--theme` picks a theme. The
+builder home has the same action as **Generate**, which opens the course as a new draft.
 
 Every command accepts `--json` for one JSON object per line. Exit codes: 0 ok, 1 level errors,
 2 the solution did not reach the goal, 3 I/O or usage errors.
