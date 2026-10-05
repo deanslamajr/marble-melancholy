@@ -47,7 +47,16 @@ export class AudioEngine {
   private hoover: sfx.HooverVoice | null = null;
   private funnel: sfx.FunnelVoice | null = null;
   private seq: Sequencer | null = null;
-  private pendingMusic: { id: MusicId; gain: number } | null = null;
+  private seqCue: string | null = null;
+  private pendingMusic: { id: MusicId; gain: number; cue: string | null } | null = null;
+  private background = false;
+  private resumeOnForeground = false;
+  private musicStarts = 0;
+
+  /** Diagnostics for the E2E hooks: context state and how many times a track started. */
+  get debugState(): { context: string; musicStarts: number } {
+    return { context: this.ctx?.state ?? "none", musicStarts: this.musicStarts };
+  }
   private lastSnap: SimSnapshot | null = null;
   private level: UnstampedLevel | null = null;
   private lastClack = [-1, -1];
@@ -92,7 +101,24 @@ export class AudioEngine {
     }
     const pending = this.pendingMusic;
     this.pendingMusic = null;
-    if (pending) this.startMusic(pending.id, pending.gain);
+    if (pending) this.startMusic(pending.id, pending.gain, pending.cue ?? undefined);
+  }
+
+  /**
+   * Hidden or unfocused page: suspend the context (music and SFX). Coming back resumes it only if
+   * it was running when we suspended it, i.e. a user gesture had already unlocked it.
+   */
+  setBackground(bg: boolean): void {
+    if (bg === this.background) return;
+    this.background = bg;
+    const ctx = this.ctx;
+    if (bg) {
+      this.resumeOnForeground = ctx?.state === "running";
+      if (this.resumeOnForeground) ctx!.suspend().catch(() => undefined);
+    } else {
+      if (this.resumeOnForeground && ctx) ctx.resume().catch(() => undefined);
+      this.resumeOnForeground = false;
+    }
   }
 
   setVolumes(v: { master: number; music: number; sfx: number }): void {
@@ -302,11 +328,19 @@ export class AudioEngine {
     }
   }
 
-  startMusic(id: MusicId, gain = 1): void {
+  /**
+   * Starts a track from the top. With a `cue`, a repeat request for the cue already playing (or
+   * pending) is ignored, so callers can re-sync music on every state change without restarting it.
+   */
+  startMusic(id: MusicId, gain = 1, cue?: string): void {
+    const key = cue === undefined ? null : `${cue}|${id}|${gain}`;
+    const p = this.pendingMusic;
+    const pendingKey = p && p.cue !== null ? `${p.cue}|${p.id}|${p.gain}` : null;
+    if (key !== null && (this.seqCue === key || pendingKey === key)) return;
     this.stopMusic();
     const ctx = this.ctx;
     if (!ctx || !this.musicBus) {
-      this.pendingMusic = { id, gain };
+      this.pendingMusic = { id, gain, cue: cue ?? null };
       return;
     }
     const track = TRACKS[id];
@@ -314,6 +348,8 @@ export class AudioEngine {
     try {
       this.seq = new Sequencer(ctx, this.musicBus, track, gain);
       this.seq.start();
+      this.seqCue = key;
+      this.musicStarts++;
     } catch (_err) {
       this.seq = null;
     }
@@ -321,6 +357,7 @@ export class AudioEngine {
 
   stopMusic(): void {
     this.pendingMusic = null;
+    this.seqCue = null;
     if (this.seq) {
       try {
         this.seq.stop();

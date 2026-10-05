@@ -22,6 +22,8 @@ export interface MmTestApi {
   /** Play race `index` (0-based course order) in custom mode. */
   startRace(index: number): Promise<void>;
   courseIds(): readonly string[];
+  /** Audio context state ("none" before the first gesture) and the count of music (re)starts. */
+  audio(): { context: string; musicStarts: number };
   /** Re-run a level's embedded solution in this browser; compare with the stamped hash. */
   verifyReplay(
     id: string,
@@ -56,6 +58,7 @@ export function installTestApi(c: GameController): void {
       c.startCustom(await LevelLoader.load(id));
     },
     courseIds: () => courseIds(),
+    audio: () => c.audio.debugState,
     verifyReplay: async (id) => {
       const level = await LevelLoader.load(id);
       const r = runReplay(level, level.solution.runs);

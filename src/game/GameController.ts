@@ -118,6 +118,8 @@ export class GameController {
   private lastNow = -1;
   private lowTimeSecond: number[] = [];
   private customOnExit: (() => void) | null = null;
+  private raceEpoch = 0;
+  private attractEpoch = 0;
 
   /** E2E hook: per-player forced input (window.__mm.injectInput). */
   readonly injected: Array<InputFrame | null> = [null, null];
@@ -190,8 +192,45 @@ export class GameController {
     this.raf = 0;
   }
 
+  /** Gesture handler: resumes or creates the audio context; never (re)starts music. */
   unlockAudio(): void {
-    void this.audio.unlock().then(() => this.syncMusic());
+    void this.audio.unlock();
+  }
+
+  /**
+   * Hidden tab or unfocused window: suspend all audio. A race is auto-paused only when the page is
+   * hidden (rAF stops, and the player cannot see the marble); a mere blur keeps it running.
+   */
+  setPageBackground(hidden: boolean, blurred: boolean): void {
+    this.audio.setBackground(hidden || blurred);
+    if (hidden) this.pause();
+  }
+
+  /** Installs visibility and focus listeners for setPageBackground; returns an uninstaller. */
+  watchPage(): () => void {
+    let hidden = document.visibilityState === "hidden";
+    let blurred = false;
+    const sync = () => this.setPageBackground(hidden, blurred);
+    const onVis = () => {
+      hidden = document.visibilityState === "hidden";
+      sync();
+    };
+    const onBlur = () => {
+      blurred = true;
+      sync();
+    };
+    const onFocus = () => {
+      blurred = false;
+      sync();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+    };
   }
 
   // ---------- state machine ----------
@@ -215,13 +254,14 @@ export class GameController {
     this.syncMusic();
   }
 
+  /** Music per screen; cues make repeat calls no-ops, so only a new race or attract run restarts. */
   private syncMusic(): void {
     const s = this.state.value;
     if (simRuns(s) || s === "raceIntro" || s === "paused" || s === "raceComplete") {
       const level = this.sim?.level;
-      if (level) this.audio.startMusic(level.music);
+      if (level) this.audio.startMusic(level.music, 1, `race${this.raceEpoch}`);
     } else if (s === "attract" && this.attract) {
-      this.audio.startMusic(this.attract.level.music, 0.4);
+      this.audio.startMusic(this.attract.level.music, 0.4, `attract${this.attractEpoch}`);
     } else if (
       s === "title" ||
       s === "playerSelect" ||
@@ -229,7 +269,7 @@ export class GameController {
       s === "scores" ||
       s === "custom"
     ) {
-      this.audio.startMusic("m1-first-steps", 0.4);
+      this.audio.startMusic("m1-first-steps", 0.4, "menu");
     } else {
       this.audio.stopMusic();
     }
@@ -304,6 +344,7 @@ export class GameController {
     const session = this.session!;
     const level = session.level;
     const start = session.startTicks();
+    this.raceEpoch++;
     this.sim = new RaceSim(level, {
       players: session.players,
       startTimeTicks: start,
@@ -763,6 +804,7 @@ export class GameController {
   private nextAttract(): void {
     const run = this.reel?.next() ?? null;
     this.attract = run;
+    this.attractEpoch++;
     if (run) {
       this.useLevel(run.level);
       this.camera?.snapTo(run.cur);

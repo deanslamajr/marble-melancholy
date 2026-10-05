@@ -7,6 +7,7 @@ import "./ui/styles.css";
 
 const controller = new GameController();
 startRouter();
+controller.watchPage();
 if (new URLSearchParams(location.search).get("e2e") === "1") installTestApi(controller);
 render(<App controller={controller} />, document.getElementById("app")!);
 void controller.boot();
