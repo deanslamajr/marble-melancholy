@@ -24,7 +24,7 @@
     "test": "npm run levels:check && vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test --project=chromium --project=firefox --project=webkit",
-    "test:e2e:mobile": "playwright test --project=pixel --project=pixel-landscape --project=iphone --project=iphone-landscape",
+    "test:e2e:mobile": "playwright test --project=pixel --project=pixel-landscape --project=iphone --project=iphone-landscape --project=iphone15-landscape --project=galaxy-landscape",
     "test:perf": "playwright test --project=perf --no-deps",
     "levels:build": "tsx tools/levelc/cli.ts build-all",
     "levels:check": "tsx tools/levelc/cli.ts check levels/compiled",

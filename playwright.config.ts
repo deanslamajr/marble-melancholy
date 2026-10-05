@@ -36,6 +36,8 @@ export default defineConfig({
         ["pixel-landscape", "Pixel 7 landscape"],
         ["iphone", "iPhone 14"],
         ["iphone-landscape", "iPhone 14 landscape"],
+        ["iphone15-landscape", "iPhone 15 landscape"],
+        ["galaxy-landscape", "Galaxy S24 landscape"],
       ] as const
     ).map(([name, deviceName]) => ({
       name,

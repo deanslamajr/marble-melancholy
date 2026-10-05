@@ -99,16 +99,16 @@ Compiled outputs in `levels/compiled/` are committed; the test suite fails if th
 
 ## Development
 
-| Script                    | Purpose                                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `npm test`                | Check compiled levels, then run Vitest (unit, levels, enforcement, storage, sim perf) |
-| `npm run test:e2e`        | Playwright on chromium, firefox and webkit                                            |
-| `npm run test:e2e:mobile` | Playwright on emulated Pixel 7 and iPhone 14, portrait and landscape, with touch      |
-| `npm run test:perf`       | Playwright frame-time budget on chromium                                              |
-| `npm run lint`            | ESLint and Prettier check                                                             |
-| `npm run typecheck`       | `tsc` for the app and for tools/tests                                                 |
-| `npm run levels:build`    | Recompile all level sources                                                           |
-| `npm run icons`           | Redraw the home-screen icons in `public/icons/` (drawn in code, no image assets)      |
+| Script                    | Purpose                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `npm test`                | Check compiled levels, then run Vitest (unit, levels, enforcement, storage, sim perf)    |
+| `npm run test:e2e`        | Playwright on chromium, firefox and webkit                                               |
+| `npm run test:e2e:mobile` | Touch tests: Pixel 7 and iPhone 14 in both orientations; iPhone 15, Galaxy S24 landscape |
+| `npm run test:perf`       | Playwright frame-time budget on chromium                                                 |
+| `npm run lint`            | ESLint and Prettier check                                                                |
+| `npm run typecheck`       | `tsc` for the app and for tools/tests                                                    |
+| `npm run levels:build`    | Recompile all level sources                                                              |
+| `npm run icons`           | Redraw the home-screen icons in `public/icons/` (drawn in code, no image assets)         |
 
 `?e2e=1` exposes `window.__mm`, a small test API used by Playwright. Design decisions are in
 [`PLAN.md`](PLAN.md) (D01–D37) and [`DECISIONS.md`](DECISIONS.md).
