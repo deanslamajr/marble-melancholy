@@ -106,7 +106,9 @@ export async function generateLevel(opts: GenerateLevelOptions): Promise<Generat
       const res = await compileLevel(source, { sourceText });
       if (!res.ok || !("level" in res)) {
         const ds = res.ok ? res.diagnostics : res.diagnostics;
-        failures.push(label + (ds.map((d) => `${d.code} ${d.message}`).join("; ") || "compile failed"));
+        failures.push(
+          label + (ds.map((d) => `${d.code} ${d.message}`).join("; ") || "compile failed"),
+        );
         continue;
       }
       return {

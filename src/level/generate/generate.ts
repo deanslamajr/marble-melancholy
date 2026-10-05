@@ -246,7 +246,10 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
     if (chain >= tier.maxChain || L.entities.length > 56) return false;
     if (rng.next() < tier.shortcutShare) {
       const s = side();
-      if (L.attempt(() => L.shortcut(s)) || (L.d === S && L.attempt(() => L.shortcut(-s as 1 | -1)))) {
+      if (
+        L.attempt(() => L.shortcut(s)) ||
+        (L.d === S && L.attempt(() => L.shortcut(-s as 1 | -1)))
+      ) {
         record("shortcut", true, false, false);
         closeAt = segments.length + 2 + rng.nextInt(2);
         return true;
@@ -265,7 +268,10 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
     );
     for (const risk of order) {
       const s = side();
-      if (L.attempt(() => L.fork(risk, s)) || (L.d === S && L.attempt(() => L.fork(risk, -s as 1 | -1)))) {
+      if (
+        L.attempt(() => L.fork(risk, s)) ||
+        (L.d === S && L.attempt(() => L.fork(risk, -s as 1 | -1)))
+      ) {
         record(
           "fork",
           true,
@@ -312,7 +318,9 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
             precision = L.waveCrossing(allowBare) || precision;
             break;
           default:
-            L[k as Exclude<SegmentKind, "narrows" | "waveCrossing" | "fork" | "shortcut" | "spiral">]();
+            L[
+              k as Exclude<SegmentKind, "narrows" | "waveCrossing" | "fork" | "shortcut" | "spiral">
+            ]();
         }
       });
       if (ok) {

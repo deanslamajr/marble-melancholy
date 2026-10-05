@@ -7,9 +7,14 @@ import {
   attemptSeed,
   DIFFICULTIES,
   generatedId,
+  GENERATOR_VERSION,
   generateSource,
+  TIERS,
+  type Difficulty,
+  type LayoutShape,
   type SegmentKind,
 } from "../../src/level/generate/generate";
+import { KIND_INFO } from "../../src/level/generate/tiers";
 import { generateLevel, MAX_ATTEMPTS, timingFor } from "../../src/level/generate/pipeline";
 import { verifyStamp } from "../../src/level/stamp";
 import { verifyCompiled } from "../../src/level/verify";
@@ -85,12 +90,35 @@ describe("retries", () => {
   });
 });
 
+/**
+ * Expected rates over the 50 seeds (L25). `forked` is the share of courses with at least one
+ * fork or shortcut; `switchback` the share with two or more turns; `risky` the share whose
+ * embedded solution takes every risky line; `kinds` the mean distinct segment kinds per course.
+ */
+const RATES: Record<
+  Difficulty,
+  { forked: number; forks: number; switchback: number; turns: number; risky: number; kinds: number }
+> = {
+  easy: { forked: 0.15, forks: 0.15, switchback: 0.8, turns: 2.5, risky: 0.15, kinds: 5 },
+  medium: { forked: 0.65, forks: 0.65, switchback: 0.9, turns: 3, risky: 0.65, kinds: 6.5 },
+  hard: { forked: 0.95, forks: 1.2, switchback: 0.95, turns: 4, risky: 0.9, kinds: 8 },
+  expert: { forked: 0.95, forks: 1.4, switchback: 0.95, turns: 4.5, risky: 0.9, kinds: 9 },
+};
+
 for (const difficulty of DIFFICULTIES) {
   describe(`${difficulty}: ${SEEDS_PER_DIFFICULTY} seeds`, () => {
     it("every seed yields a valid, solvable, stamped level within limits and budget", async () => {
       const kinds = new Set<SegmentKind>();
+      const shapes = new Map<LayoutShape, number>();
+      const tier = TIERS[difficulty];
       let total = 0;
       let worst = 0;
+      let forked = 0;
+      let forks = 0;
+      let switchbacks = 0;
+      let turns = 0;
+      let risky = 0;
+      let distinct = 0;
       for (let seed = 1; seed <= SEEDS_PER_DIFFICULTY; seed++) {
         const t0 = performance.now();
         const r = await generateLevel({ seed: seed * 7919, difficulty });
@@ -117,10 +145,51 @@ for (const difficulty of DIFFICULTIES) {
         expect(l.timing.par).toBeLessThan(l.timing.timeLimit);
         expect(l.solution.deaths).toBe(0);
         expect(l.solution.ticks).toBeLessThanOrEqual(l.timing.par * TICK_HZ);
+        expect(r.version).toBe(GENERATOR_VERSION);
+
+        // Grammar and fairness (L19): no back-to-back repeats, the hazard cap, nothing hazardous
+        // straight after an airborne segment, and bounded chains of precision segments.
+        const segs = r.segments;
+        let chain = 0;
+        for (let i = 0; i < segs.length; i++) {
+          const info = KIND_INFO[segs[i]!];
+          if (i > 0) {
+            expect(segs[i], `seed ${seed * 7919} repeats ${segs[i]}`).not.toBe(segs[i - 1]);
+            const prev = KIND_INFO[segs[i - 1]!];
+            if (prev.airborne && segs[i - 1] !== "fork") expect(info.hazard).toBe(false);
+          }
+          chain = info.precision ? chain + 1 : 0;
+          expect(chain, `seed ${seed * 7919} precision chain`).toBeLessThanOrEqual(tier.maxChain);
+        }
+        expect(r.stats.hazards).toBeLessThanOrEqual(tier.maxHazards);
+
+        const s = r.stats;
+        shapes.set(s.shape, (shapes.get(s.shape) ?? 0) + 1);
+        if (s.forks > 0) forked++;
+        forks += s.forks;
+        if (s.turns >= 2) switchbacks++;
+        turns += s.turns;
+        if (r.line === "risky") risky++;
+        distinct += s.distinctKinds;
+        expect(s.distinctKinds).toBe(new Set(segs).size);
       }
-      expect(total / SEEDS_PER_DIFFICULTY).toBeLessThan(AVG_BUDGET_MS);
+      const n = SEEDS_PER_DIFFICULTY;
+      expect(total / n).toBeLessThan(AVG_BUDGET_MS);
       expect(worst).toBeLessThan(WORST_BUDGET_MS);
-      expect(kinds.size).toBeGreaterThanOrEqual(8);
+
+      // Variety metric: kinds across seeds, distinct kinds per course, turns, layout-shape
+      // histogram (no single shape dominates and none is the old straight strip).
+      const want = RATES[difficulty];
+      expect(kinds.size).toBeGreaterThanOrEqual(14);
+      expect(distinct / n).toBeGreaterThanOrEqual(want.kinds);
+      expect(forked / n).toBeGreaterThanOrEqual(want.forked);
+      expect(forks / n).toBeGreaterThanOrEqual(want.forks);
+      expect(switchbacks / n).toBeGreaterThanOrEqual(want.switchback);
+      expect(turns / n).toBeGreaterThanOrEqual(want.turns);
+      expect(risky / n).toBeGreaterThanOrEqual(want.risky);
+      expect(shapes.get("straight") ?? 0).toBe(0);
+      expect(shapes.size).toBeGreaterThanOrEqual(3);
+      expect(Math.max(...shapes.values()) / n).toBeLessThanOrEqual(0.6);
     }, 120_000);
   });
 }

@@ -51,7 +51,7 @@ export async function generateCommand(o: GenerateOpts): Promise<number> {
     return 2;
   }
   const s = r.level.solution;
-  const summary = `${ok(o, "OK")} ${r.level.id} "${r.level.name}" ${difficulty} seed=${seed} attempts=${r.attempts} segments=${r.segments.join(",")} GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s par=${r.level.timing.par} limit=${r.level.timing.timeLimit}`;
+  const summary = `${ok(o, "OK")} ${r.level.id} "${r.level.name}" ${difficulty} seed=${seed} attempts=${r.attempts} v=${r.version} shape=${r.stats.shape} turns=${r.stats.turns} forks=${r.stats.forks} line=${r.line} segments=${r.segments.join(",")} GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s par=${r.level.timing.par} limit=${r.level.timing.timeLimit}`;
   const json = {
     ok: true,
     id: r.level.id,
@@ -60,6 +60,9 @@ export async function generateCommand(o: GenerateOpts): Promise<number> {
     seed,
     attempts: r.attempts,
     layoutSeed: r.layoutSeed,
+    version: r.version,
+    stats: r.stats,
+    line: r.line,
     segments: r.segments,
     ticks: s.ticks,
     par: r.level.timing.par,
