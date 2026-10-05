@@ -1,23 +1,38 @@
-// Procedural course generator: seed + difficulty (+ theme) → LevelSource with a waypoint solution.
+// Procedural course generator: seed + difficulty (+ theme) → LevelSource with waypoint routes.
 // Pure and deterministic (D06, D07): mulberry32 only, no transcendental Math, no clocks.
+// Generator v2 (DECISIONS L15–L24): switchback layouts on the full grid, forks, set-pieces.
 import { fnv1a32 } from "../../core/hash";
 import { Rng } from "../../core/rng";
-import { GRAVITY } from "../../sim/constants";
 import {
   MUSIC_IDS,
   THEME_IDS,
   type Cell,
-  type CheckpointSource,
   type EntitySource,
   type LevelSource,
   type MusicId,
   type ThemeId,
   type Waypoint,
 } from "../types";
-import { CourseGrid, EDGE } from "./grid";
+import { E, S, W, turnDir, type Dir } from "./grid";
+import { Layout, SIZE, type CornerStyle } from "./layout";
+import {
+  DIFFICULTIES,
+  DROPPING_RISKS,
+  FORK_RISKS,
+  KIND_INFO,
+  SET_PIECES,
+  THEME_FLAVOUR,
+  TIERS,
+  type Difficulty,
+  type ForkRisk,
+  type SegmentKind,
+  type Tier,
+} from "./tiers";
 
-export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
-export type Difficulty = (typeof DIFFICULTIES)[number];
+export { DIFFICULTIES, TIERS, type Difficulty, type SegmentKind };
+
+/** Bumped whenever the same seed may produce a different course (L24). */
+export const GENERATOR_VERSION = 2;
 
 export interface GenerateOptions {
   seed: number;
@@ -25,166 +40,32 @@ export interface GenerateOptions {
   theme?: ThemeId;
 }
 
-export type SegmentKind =
-  | "slope"
-  | "steep"
-  | "ledge"
-  | "jump"
-  | "jog"
-  | "narrows"
-  | "ice"
-  | "wave"
-  | "speed"
-  | "acid"
-  | "hammer"
-  | "steelie"
-  | "hoover"
-  | "muncher"
-  | "catapult"
-  | "funnel"
-  | "pipe";
+export type LayoutShape = "straight" | "L" | "zigzag" | "stairs" | "wander";
+
+export interface CourseStats {
+  shape: LayoutShape;
+  turns: number;
+  forks: number;
+  hazards: number;
+  distinctKinds: number;
+  setPieces: SegmentKind[];
+}
 
 export interface GeneratedSource {
+  /** The course with the first route as its solution. */
   source: LevelSource;
   segments: SegmentKind[];
   /** The seed this layout was built from (the requested seed or a derived retry seed). */
   layoutSeed: number;
+  /** Waypoint routes in the order the pipeline tries them: every risky line, then every safe one. */
+  routes: Waypoint[][];
+  stats: CourseStats;
+  /** Set when the layout was abandoned (the pipeline then tries the next attempt seed). */
+  problem: string | null;
 }
 
 /** Placeholder timing; `generateLevel` replaces it with values derived from the solution time. */
 export const DRAFT_TIMING = { timeLimit: 99, par: 98, timeBonus: 5 } as const;
-
-const GRID_W = 24;
-const MAX_ROWS = 128;
-const HAZARDS: ReadonlySet<SegmentKind> = new Set([
-  "acid",
-  "hammer",
-  "steelie",
-  "hoover",
-  "muncher",
-]);
-
-interface Tier {
-  segments: [min: number, max: number];
-  widths: [min: number, max: number];
-  startHeight: number;
-  maxHazards: number;
-  weights: Partial<Record<SegmentKind, number>>;
-  goalScore: number;
-}
-
-const TIERS: Record<Difficulty, Tier> = {
-  easy: {
-    segments: [5, 6],
-    widths: [5, 6],
-    startHeight: 30,
-    maxHazards: 1,
-    goalScore: 1000,
-    weights: {
-      slope: 3,
-      steep: 1,
-      ledge: 2,
-      jump: 2,
-      jog: 2,
-      speed: 1,
-      ice: 1,
-      wave: 1,
-      acid: 1,
-      pipe: 1,
-    },
-  },
-  medium: {
-    segments: [7, 8],
-    widths: [4, 5],
-    startHeight: 33,
-    maxHazards: 3,
-    goalScore: 1500,
-    weights: {
-      slope: 2,
-      steep: 2,
-      ledge: 1,
-      jump: 3,
-      jog: 2,
-      narrows: 1,
-      ice: 1,
-      wave: 1,
-      speed: 1,
-      acid: 2,
-      hammer: 2,
-      steelie: 1,
-      hoover: 1,
-      catapult: 1,
-      funnel: 1,
-      pipe: 1,
-    },
-  },
-  hard: {
-    segments: [9, 10],
-    widths: [3, 4],
-    startHeight: 35,
-    maxHazards: 6,
-    goalScore: 2000,
-    weights: {
-      slope: 1,
-      steep: 2,
-      ledge: 1,
-      jump: 3,
-      jog: 2,
-      narrows: 2,
-      ice: 1,
-      wave: 1,
-      acid: 2,
-      hammer: 2,
-      steelie: 2,
-      hoover: 1,
-      muncher: 1,
-      catapult: 1,
-      funnel: 1,
-    },
-  },
-};
-
-/** Worst-case height (half-units) a segment may consume; the planner keeps the course above 0. */
-const MAX_DROP: Record<SegmentKind, number> = {
-  slope: 6,
-  steep: 8,
-  ledge: 3,
-  jump: 7,
-  jog: 0,
-  narrows: 4,
-  ice: 2,
-  wave: 0,
-  speed: 0,
-  acid: 0,
-  hammer: 0,
-  steelie: 0,
-  hoover: 0,
-  muncher: 0,
-  catapult: 4,
-  funnel: 3,
-  pipe: 3,
-};
-
-/** Worst-case rows a segment may use (catapult landings depend on the launch). */
-const MAX_ROWS_PER: Record<SegmentKind, number> = {
-  slope: 8,
-  steep: 8,
-  ledge: 5,
-  jump: 11,
-  jog: 7,
-  narrows: 6,
-  ice: 8,
-  wave: 7,
-  speed: 8,
-  acid: 7,
-  hammer: 6,
-  steelie: 7,
-  hoover: 6,
-  muncher: 6,
-  catapult: 16,
-  funnel: 11,
-  pipe: 9,
-};
 
 const ADJECTIVES = [
   "Grey",
@@ -229,7 +110,7 @@ export function attemptSeed(seed: number, attempt: number): number {
 }
 
 export function generatedId(difficulty: Difficulty, seed: number): string {
-  return `gen-${difficulty}-${seed >>> 0}`;
+  return `gen-v${GENERATOR_VERSION}-${difficulty}-${seed >>> 0}`;
 }
 
 function pick<T>(rng: Rng, items: readonly T[]): T {
@@ -240,423 +121,329 @@ function intIn(rng: Rng, lo: number, hi: number): number {
   return lo + rng.nextInt(hi - lo + 1);
 }
 
-function weighted(rng: Rng, weights: ReadonlyArray<[SegmentKind, number]>): SegmentKind {
-  let total = 0;
-  for (const [, w] of weights) total += w;
-  let r = rng.next() * total;
-  for (const [k, w] of weights) {
-    r -= w;
-    if (r < 0) return k;
-  }
-  return weights[weights.length - 1]![0];
-}
-
-class Layout {
-  readonly g = new CourseGrid(GRID_W, MAX_ROWS);
-  readonly points: Waypoint[] = [];
-  readonly entities: EntitySource[] = [];
-  readonly checkpoints: CheckpointSource[] = [];
-  x: number;
-  w: number;
-  y = 1;
-  h: number;
-  /** A safe flat cell at the end of the last segment (checkpoint candidate). */
-  rest: Cell | null = null;
-
-  constructor(
-    readonly rng: Rng,
-    readonly difficulty: Difficulty,
-    readonly baseW: number,
-    startH: number,
-  ) {
-    this.w = baseW;
-    this.x = Math.floor((GRID_W - baseW) / 2);
-    this.h = startH;
-  }
-
-  get cx(): number {
-    return this.x + (this.w >> 1);
-  }
-
-  get x1(): number {
-    return this.x + this.w - 1;
-  }
-
-  setWidth(nw: number): void {
-    let nx = this.x + Math.floor((this.w - nw) / 2);
-    nx = Math.max(1, Math.min(GRID_W - 1 - nw, nx));
-    this.x = nx;
-    this.w = nw;
-  }
-
-  wp(x: number, y: number, speed: number, radius?: number): void {
-    const p: Waypoint = { at: [x, y], speed };
-    if (radius !== undefined) p.radius = radius;
-    this.points.push(p);
-  }
-
-  flat(rows: number): void {
-    this.g.fill(this.x, this.y, this.x1, this.y + rows - 1, this.h);
-    this.y += rows;
-    this.rest = [this.cx, this.y - 1];
-  }
-
-  ramp(rows: number, steep: boolean): void {
-    this.h = this.g.rampS(this.x, this.x1, this.y, rows, this.h, steep);
-    this.y += rows;
-  }
-
-  start(): void {
-    this.setWidth(Math.max(this.baseW, 4));
-    this.flat(4);
-  }
-
-  goal(): Cell {
-    this.setWidth(Math.max(this.baseW, 5));
-    this.flat(5);
-    const at: Cell = [this.cx, this.y - 3];
-    this.wp(at[0], at[1], 0.6);
-    return at;
-  }
-
-  // ---------- segments ----------
-
-  slope(): void {
-    this.setWidth(this.baseW);
-    this.ramp(intIn(this.rng, 3, 6), false);
-    this.flat(2);
-    this.wp(this.cx, this.y - 1, 0.9);
-  }
-
-  steep(): void {
-    // Steep runs stay two rows (1.0 drop each) so a marble launched off the crest never falls
-    // the 2.5 that shatters it.
-    this.setWidth(this.baseW);
-    this.ramp(2, true);
-    this.flat(2);
-    if (this.rng.next() < 0.5) {
-      this.ramp(2, true);
-      this.flat(2);
+/** Weighted draw without replacement: up to `n` distinct items, most likely first. */
+function drawOrder<T>(rng: Rng, weighted: ReadonlyArray<[T, number]>, n: number): T[] {
+  const pool = weighted.filter(([, w]) => w > 0).slice();
+  const out: T[] = [];
+  while (pool.length > 0 && out.length < n) {
+    let total = 0;
+    for (const [, w] of pool) total += w;
+    let r = rng.next() * total;
+    let i = 0;
+    for (; i < pool.length - 1; i++) {
+      r -= pool[i]![1];
+      if (r < 0) break;
     }
-    this.wp(this.cx, this.y - 1, 0.8);
-  }
-
-  ledge(): void {
-    this.setWidth(this.baseW);
-    this.flat(2);
-    this.h -= intIn(this.rng, 2, 3);
-    this.flat(3);
-    this.wp(this.cx, this.y - 1, 0.8);
-  }
-
-  jump(): void {
-    this.setWidth(this.baseW);
-    const gap =
-      this.difficulty === "easy" ? 1 : this.difficulty === "medium" ? intIn(this.rng, 1, 2) : 2;
-    this.ramp(3, false);
-    if (gap === 2) {
-      this.flat(2);
-      this.g.surface(this.x, this.y - 2, this.x1, this.y - 1, "v");
-    }
-    const edgeRow = this.y - 1;
-    this.g.openEdges(this.x, edgeRow, this.x1, edgeRow, EDGE.S);
-    this.wp(this.cx, edgeRow, 1.0);
-    this.y += gap;
-    this.h -= gap === 1 ? 2 : intIn(this.rng, 3, 4);
-    this.g.openEdges(this.x, this.y, this.x1, this.y, EDGE.N);
-    this.flat(4);
-    this.wp(this.cx, this.y - 2, 0.9, 0.8);
-  }
-
-  jog(): void {
-    this.setWidth(this.baseW);
-    const room = { left: this.x - 1, right: GRID_W - 2 - this.x1 };
-    let dir = this.rng.next() < 0.5 ? -1 : 1;
-    if ((dir < 0 ? room.left : room.right) < 2) dir = -dir;
-    const max = Math.min(5, dir < 0 ? room.left : room.right);
-    if (max < 2) return this.ledge();
-    const dx = dir * intIn(this.rng, 2, max);
-    const rows = this.w + 1;
-    const mid = this.y + (rows >> 1);
-    this.g.fill(
-      Math.min(this.x, this.x + dx),
-      this.y,
-      Math.max(this.x1, this.x1 + dx),
-      this.y + rows - 1,
-      this.h,
-    );
-    this.wp(this.cx, mid, 0.55, 0.7);
-    this.x += dx;
-    this.wp(this.cx, mid, 0.55, 0.7);
-    this.y += rows;
-    this.rest = [this.cx, this.y - 1];
-  }
-
-  narrows(): void {
-    this.setWidth(this.difficulty === "hard" ? 2 : 3);
-    this.ramp(4, false);
-    this.flat(2);
-    this.wp(this.cx, this.y - 1, 0.8);
-  }
-
-  ice(): void {
-    this.setWidth(this.baseW);
-    const y0 = this.y;
-    this.flat(2);
-    if (this.rng.next() < 0.5) this.ramp(2, false);
-    this.flat(3);
-    this.g.surface(this.x, y0, this.x1, this.y - 1, "i");
-    this.flat(1);
-    this.wp(this.cx, this.y - 1, 0.7);
-  }
-
-  wave(): void {
-    this.setWidth(this.baseW);
-    const y0 = this.y;
-    this.flat(7);
-    const amplitude = { easy: 0.2, medium: 0.28, hard: 0.35 }[this.difficulty];
-    this.entities.push({
-      type: "wave",
-      rect: [this.x, y0 + 1, this.x1, y0 + 5],
-      amplitude,
-      wavelength: 3,
-      speed: 1.5,
-      dir: [0, 1],
-    });
-    this.wp(this.cx, this.y - 1, 0.8);
-  }
-
-  speed(): void {
-    this.setWidth(this.baseW);
-    this.flat(2);
-    this.flat(3);
-    this.g.surface(this.x, this.y - 3, this.x1, this.y - 1, "v");
-    this.flat(3);
-    this.wp(this.cx, this.y - 1, 0.9);
-  }
-
-  acid(): void {
-    this.setWidth(Math.max(this.baseW, 5));
-    const y0 = this.y;
-    this.flat(7);
-    const { x, x1 } = this;
-    if (this.difficulty === "hard") {
-      const half = this.w >> 1;
-      this.g.surface(x, y0 + 1, x + half - 1, y0 + 2, "a");
-      this.g.surface(x1 - half + 1, y0 + 4, x1, y0 + 5, "a");
-      this.wp(x1 - 1, y0 + 1, 0.5);
-      this.wp(x1 - 1, y0 + 2, 0.5);
-      this.wp(x + 1, y0 + 4, 0.5);
-      this.wp(x + 1, y0 + 5, 0.5);
-    } else {
-      this.g.surface(x, y0 + 1, x, y0 + 5, "a");
-      this.g.surface(x1, y0 + 1, x1, y0 + 5, "a");
-      this.wp(this.cx, y0 + 5, 0.7);
-    }
-    this.wp(this.cx, this.y - 1, 0.7);
-  }
-
-  hammer(): void {
-    this.setWidth(Math.max(this.baseW, 4));
-    const y0 = this.y;
-    this.flat(6);
-    const left = this.rng.next() < 0.5;
-    const hc = left ? this.x : this.x1;
-    const sc = left ? this.x1 : this.x;
-    const period = (20 + this.rng.nextInt(9)) / 10;
-    this.entities.push({
-      type: "hammer",
-      at: [hc, y0 + 2],
-      period,
-      phase: this.rng.nextInt(20) / 10,
-    });
-    if (this.difficulty === "hard")
-      this.entities.push({
-        type: "hammer",
-        at: [hc, y0 + 4],
-        period,
-        phase: this.rng.nextInt(20) / 10,
-      });
-    this.wp(sc, y0 + 1, 0.7);
-    this.wp(sc, y0 + 5, 0.7);
-  }
-
-  steelie(): void {
-    this.setWidth(5);
-    const y0 = this.y;
-    this.flat(7);
-    const speed = (20 + this.rng.nextInt(10)) / 10;
-    if (this.difficulty === "hard") {
-      this.entities.push({
-        type: "steelie",
-        at: [this.x, y0 + 3],
-        mode: "patrol",
-        path: [
-          [this.x, y0 + 3],
-          [this.x1, y0 + 3],
-        ],
-        speed,
-      });
-      this.wp(this.cx, this.y - 1, 0.9);
-    } else {
-      const left = this.rng.next() < 0.5;
-      const pc = left ? this.x : this.x1;
-      const sc = left ? this.x1 : this.x;
-      this.entities.push({
-        type: "steelie",
-        at: [pc, y0 + 1],
-        mode: "patrol",
-        path: [
-          [pc, y0 + 1],
-          [pc, y0 + 5],
-        ],
-        speed,
-      });
-      this.wp(sc, y0 + 1, 0.7);
-      this.wp(sc, y0 + 5, 0.7);
-      this.wp(this.cx, this.y - 1, 0.7);
-    }
-  }
-
-  /** A two-cell alcove beside a straight; returns its outer and inner cells and the far lane column. */
-  private alcove(): { outer: Cell; inner: Cell; far: number; y0: number } {
-    this.setWidth(this.baseW);
-    const y0 = this.y;
-    this.flat(6);
-    const leftRoom = this.x - 1;
-    const rightRoom = GRID_W - 2 - this.x1;
-    const left = leftRoom >= 2 && (rightRoom < 2 || this.rng.next() < 0.5);
-    const ax0 = left ? this.x - 2 : this.x1 + 1;
-    this.g.fill(ax0, y0 + 2, ax0 + 1, y0 + 4, this.h);
-    return {
-      outer: [left ? this.x - 2 : this.x1 + 2, y0 + 3],
-      inner: [left ? this.x - 1 : this.x1 + 1, y0 + 3],
-      far: left ? this.x1 : this.x,
-      y0,
-    };
-  }
-
-  hoover(): void {
-    const a = this.alcove();
-    const reach = Math.abs(a.outer[0] - a.far) + 1;
-    this.entities.push({
-      type: "hoover",
-      at: a.outer,
-      pullRadius: Math.min(6, reach),
-      pullStrength: this.difficulty === "hard" ? 9 : 6,
-      killRadius: 0.4,
-      onTime: 1.5,
-      offTime: 1.5,
-      phase: this.rng.nextInt(30) / 10,
-    });
-    this.wp(a.far, a.y0 + 1, 0.9);
-    this.wp(a.far, a.y0 + 5, 0.9);
-  }
-
-  muncher(): void {
-    const a = this.alcove();
-    const gapCells = Math.abs(a.inner[0] - a.far);
-    this.entities.push({
-      type: "muncher",
-      at: a.inner,
-      triggerRadius: Math.min(3, gapCells + 0.3),
-      digestTime: 1.5,
-    });
-    this.wp(a.far, a.y0 + 1, 0.9);
-    this.wp(a.far, a.y0 + 5, 0.9);
-  }
-
-  catapult(): void {
-    this.setWidth(Math.max(this.baseW, 3));
-    const y0 = this.y;
-    this.flat(3);
-    const pad: Cell = [this.cx, y0 + 1];
-    const vy = 5 + this.rng.nextInt(3);
-    const vz = 6;
-    const drop = intIn(this.rng, 2, 4);
-    const fall = drop / 2;
-    const t = (vz + Math.sqrt(vz * vz + 2 * GRAVITY * fall)) / GRAVITY;
-    const landY = Math.floor(pad[1] + 0.5 + vy * t);
-    const first = Math.max(this.y + 1, landY - 2);
-    this.entities.push({ type: "catapult", at: pad, launch: [0, vy, vz] });
-    this.wp(pad[0], pad[1], 0.5, 0.2);
-    this.y = first;
-    this.h -= drop;
-    this.flat(landY + 4 - first);
-    this.wp(this.cx, this.y - 1, 0.7);
-  }
-
-  funnel(): void {
-    this.setWidth(5);
-    const y0 = this.y;
-    this.flat(5);
-    const centre: Cell = [this.cx, y0 + 2];
-    this.y += 2;
-    this.h -= intIn(this.rng, 2, 3);
-    const exit: Cell = [this.cx, this.y + 1];
-    this.flat(4);
-    this.entities.push({
-      type: "funnel",
-      at: centre,
-      radius: 2,
-      depth: 1,
-      exit,
-      exitVelocity: [0, 2, 0],
-      travelTime: 0.8,
-    });
-    this.wp(centre[0], centre[1], 0.6, 0.2);
-    this.wp(this.cx, this.y - 1, 0.7);
-  }
-
-  pipe(): void {
-    this.setWidth(this.baseW);
-    const y0 = this.y;
-    this.flat(3);
-    const entry: Cell = [this.cx, y0 + 2];
-    this.y += 2;
-    this.h -= intIn(this.rng, 2, 3);
-    const exit: Cell = [this.cx, this.y];
-    this.flat(4);
-    this.entities.push({
-      type: "pipe",
-      entry,
-      exit,
-      exitVelocity: [0, 3, 0],
-      travelTime: (8 + this.rng.nextInt(5)) / 10,
-    });
-    this.wp(entry[0], entry[1], 0.4, 0.2);
-    this.wp(this.cx, this.y - 1, 0.8);
-  }
-
-  run(kind: SegmentKind): void {
-    this[kind]();
-  }
-}
-
-/** Choose the segment sequence: weighted picks, no repeats, hazard cap, height and row budgets. */
-function plan(rng: Rng, tier: Tier): SegmentKind[] {
-  const count = intIn(rng, tier.segments[0], tier.segments[1]);
-  const kinds = Object.entries(tier.weights) as Array<[SegmentKind, number]>;
-  const out: SegmentKind[] = [];
-  let height = tier.startHeight - 1;
-  let rows = 1 + 4 + 5 + 1;
-  let hazards = 0;
-  for (let i = 0; i < count; i++) {
-    const allowed = kinds.filter(
-      ([k]) =>
-        k !== out[out.length - 1] &&
-        MAX_DROP[k] <= height &&
-        rows + MAX_ROWS_PER[k] <= MAX_ROWS &&
-        (!HAZARDS.has(k) || hazards < tier.maxHazards),
-    );
-    if (allowed.length === 0) break;
-    const k = weighted(rng, allowed);
-    out.push(k);
-    height -= MAX_DROP[k];
-    rows += MAX_ROWS_PER[k];
-    if (HAZARDS.has(k)) hazards++;
+    out.push(pool[i]![0]);
+    pool.splice(i, 1);
   }
   return out;
+}
+
+/** Classify the realised route by its east/west runs. */
+export function classifyShape(laterals: readonly Dir[]): LayoutShape {
+  if (laterals.length === 0) return "straight";
+  if (laterals.length === 1) return "L";
+  let alternating = true;
+  let same = true;
+  for (let i = 1; i < laterals.length; i++) {
+    if (laterals[i] === laterals[i - 1]) alternating = false;
+    else same = false;
+  }
+  return alternating ? "zigzag" : same ? "stairs" : "wander";
+}
+
+function shiftCell(c: Cell, dx: number, dy: number): Cell {
+  return [c[0] - dx, c[1] - dy];
+}
+
+function shiftEntity(e: EntitySource, dx: number, dy: number): EntitySource {
+  const s = (c: Cell) => shiftCell(c, dx, dy);
+  switch (e.type) {
+    case "wave":
+      return { ...e, rect: [e.rect[0] - dx, e.rect[1] - dy, e.rect[2] - dx, e.rect[3] - dy] };
+    case "pipe":
+      return { ...e, entry: s(e.entry), exit: s(e.exit) };
+    case "funnel":
+      return { ...e, at: s(e.at), exit: s(e.exit) };
+    case "platform":
+      return { ...e, at: s(e.at), path: e.path.map(s) };
+    case "steelie":
+    case "muncher":
+      return e.path ? { ...e, at: s(e.at), path: e.path.map(s) } : { ...e, at: s(e.at) };
+    default:
+      return { ...e, at: s(e.at) };
+  }
+}
+
+interface Plan {
+  L: Layout;
+  start: [Cell, Cell];
+  goal: Cell | null;
+  segments: SegmentKind[];
+  laterals: Dir[];
+  hazards: number;
+}
+
+/** Lay out one course: legs of segments joined by corners, forks in planned slots, a finale. */
+function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId): Plan {
+  const flavour = THEME_FLAVOUR[theme];
+  const baseW = intIn(rng, tier.widths[0], tier.widths[1]);
+  const shapeRoll = rng.next();
+  const planned: LayoutShape = shapeRoll < 0.5 ? "zigzag" : shapeRoll < 0.75 ? "stairs" : "wander";
+  const firstLateral: Dir = rng.next() < 0.5 ? E : W;
+  // Heading south, the lane spans x ∈ [startX - w + 1, startX].
+  const startX =
+    planned === "stairs"
+      ? firstLateral === E
+        ? 10 + rng.nextInt(10)
+        : SIZE - 12 - rng.nextInt(10)
+      : 50 + rng.nextInt(28);
+  const L = new Layout(rng, difficulty, tier, baseW, tier.startHeight, startX);
+  let start: [Cell, Cell] = [
+    [0, 0],
+    [0, 0],
+  ];
+  L.attempt(() => {
+    start = L.start();
+  });
+
+  const count = intIn(rng, tier.segments[0], tier.segments[1]);
+  const forkSlots = new Set<number>();
+  let forkN = 0;
+  for (const p of tier.forks) {
+    if (rng.next() < p) forkN++;
+    else break;
+  }
+  for (let tries = 0; forkSlots.size < forkN && tries < 20; tries++) {
+    const i = 2 + rng.nextInt(Math.max(1, count - 3));
+    if ([...forkSlots].every((j) => Math.abs(j - i) >= 3)) forkSlots.add(i);
+  }
+
+  const segments: SegmentKind[] = [];
+  const uses = new Map<SegmentKind, number>();
+  const cap = count >= 11 ? 3 : 2;
+  const laterals: Dir[] = [];
+  let hazards = 0;
+  let chain = 0;
+  let lastAirborne = false;
+  let legLeft = 1 + rng.nextInt(2);
+  let closeAt = -1;
+  let stuck = 0;
+  let extend = 0;
+
+  const side = (): 1 | -1 => (L.d === E ? 1 : L.d === W ? -1 : rng.next() < 0.5 ? 1 : -1);
+
+  const record = (kind: SegmentKind, precision: boolean, hazard: boolean, airborne: boolean) => {
+    segments.push(kind);
+    uses.set(kind, (uses.get(kind) ?? 0) + 1);
+    if (hazard) hazards++;
+    chain = precision ? chain + 1 : 0;
+    lastAirborne = airborne;
+  };
+
+  const tryFork = (): boolean => {
+    if (chain >= tier.maxChain || L.entities.length > 56) return false;
+    if (rng.next() < tier.shortcutShare) {
+      const s = side();
+      if (L.attempt(() => L.shortcut(s)) || (L.d === S && L.attempt(() => L.shortcut(-s as 1 | -1)))) {
+        record("shortcut", true, false, false);
+        closeAt = segments.length + 2 + rng.nextInt(2);
+        return true;
+      }
+    }
+    const risks = FORK_RISKS.filter(
+      (r) =>
+        (L.canDrop || !DROPPING_RISKS.has(r)) &&
+        (difficulty !== "easy" || r === "ledge" || r === "gap") &&
+        !((r === "acid" || r === "hammers") && (hazards >= tier.maxHazards || lastAirborne)),
+    );
+    const order = drawOrder(
+      rng,
+      risks.map((r): [ForkRisk, number] => [r, flavour.risks.includes(r) ? 3 : 1]),
+      3,
+    );
+    for (const risk of order) {
+      const s = side();
+      if (L.attempt(() => L.fork(risk, s)) || (L.d === S && L.attempt(() => L.fork(risk, -s as 1 | -1)))) {
+        record(
+          "fork",
+          true,
+          risk === "acid" || risk === "hammers",
+          risk === "gap" || risk === "catapult",
+        );
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const tryRegular = (): boolean => {
+    const last = segments[segments.length - 1];
+    const recent = segments.slice(-3);
+    const options = (Object.entries(tier.weights) as Array<[SegmentKind, number]>)
+      .filter(([k]) => {
+        const info = KIND_INFO[k];
+        return (
+          k !== last &&
+          (uses.get(k) ?? 0) < cap &&
+          (L.canDrop || info.level) &&
+          info.drop <= L.h - 1 &&
+          (!info.hazard || hazards < tier.maxHazards) &&
+          (!info.precision || chain < tier.maxChain) &&
+          !(lastAirborne && info.hazard) &&
+          L.entities.length + info.entities <= 60
+        );
+      })
+      .map(([k, w]): [SegmentKind, number] => [
+        k,
+        w * (flavour.weights[k] ?? 1) * (recent.includes(k) ? 0.35 : 1),
+      ]);
+    const allowBare = chain < tier.maxChain;
+    for (const k of drawOrder(rng, options, 6)) {
+      const info = KIND_INFO[k];
+      let precision = info.precision;
+      const ok = L.attempt(() => {
+        switch (k) {
+          case "narrows":
+            precision = L.narrows(allowBare) || precision;
+            break;
+          case "waveCrossing":
+            precision = L.waveCrossing(allowBare) || precision;
+            break;
+          default:
+            L[k as Exclude<SegmentKind, "narrows" | "waveCrossing" | "fork" | "shortcut" | "spiral">]();
+        }
+      });
+      if (ok) {
+        record(k, precision, info.hazard, info.airborne);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const corner = (): CornerStyle => {
+    const prev = segments[segments.length - 1];
+    const fast = prev === "speed" || prev === "steep" || prev === "slope" || prev === "jump";
+    const iceP = tier.corner.ice * (theme === "topsy" ? 1.5 : 1);
+    const ice = !fast && rng.next() < iceP;
+    const railless = !fast && !ice && chain < tier.maxChain && rng.next() < tier.corner.railless;
+    return { ice, railless };
+  };
+
+  while (segments.length < count && stuck < 6) {
+    if (legLeft <= 0) {
+      const lateralLeg = L.d !== S;
+      const choices: Dir[] = [];
+      if (lateralLeg) choices.push(S);
+      else {
+        const prev = laterals[laterals.length - 1];
+        const want: Dir =
+          prev === undefined
+            ? firstLateral
+            : planned === "zigzag"
+              ? turnDir(prev, 2)
+              : planned === "stairs"
+                ? prev
+                : rng.next() < 0.5
+                  ? E
+                  : W;
+        choices.push(want, turnDir(want, 2));
+      }
+      // Look ahead before committing: a run that would soon hit earlier ground (a fork's detour,
+      // the tier above) is extended by one more segment instead (at most twice per corner).
+      const clear = choices.filter((nd) => {
+        L.setWidth(Math.max(baseW, 3));
+        return L.clearAhead(nd === S ? 10 : 16, nd, 2);
+      });
+      if (clear.length === 0 && extend < 2) {
+        extend++;
+        legLeft = 1;
+        continue;
+      }
+      extend = 0;
+      const style = corner();
+      let turned = false;
+      for (const nd of [...clear, ...choices.filter((c) => !clear.includes(c))]) {
+        if (
+          L.attempt(() => {
+            L.setWidth(Math.max(baseW, 3));
+            L.turn(nd, style);
+          })
+        ) {
+          turned = true;
+          if (nd !== S) laterals.push(nd);
+          break;
+        }
+      }
+      if (!turned) {
+        stuck++;
+        legLeft = 1;
+        continue;
+      }
+      if (style.railless) chain++;
+      legLeft = L.d === S ? (rng.next() < 0.3 ? 2 : 1) : 2 + rng.nextInt(3);
+      continue;
+    }
+    const i = segments.length;
+    // Turn before running into the grid edge or earlier ground; the last segment also needs room
+    // for the goal pad after it.
+    const room = (L.d === S ? 10 : 14) + (i === count - 1 ? 8 : 0);
+    if (i > 0 && extend === 0 && !L.clearAhead(room)) {
+      legLeft = 0;
+      extend = 2;
+      continue;
+    }
+    let placed = false;
+    if (forkSlots.has(i) && !L.pending) {
+      placed = tryFork();
+      if (!placed && i + 1 < count - 1) forkSlots.add(i + 1);
+    }
+    if (!placed) placed = tryRegular();
+    if (!placed) {
+      stuck++;
+      legLeft = 0;
+      continue;
+    }
+    stuck = 0;
+    legLeft--;
+    if (i % 3 === 2 && L.rest && L.checkpoints.length < 12)
+      L.checkpoints.push({ at: L.rest, radius: 1 });
+    if (L.pending && segments[segments.length - 1] !== "shortcut" && segments.length >= closeAt) {
+      L.closeShortcut();
+      lastAirborne = true;
+    }
+  }
+  if (L.pending) L.closeShortcut();
+
+  // `attempt` undoes the geometry of a failed build, so only keep a goal whose build succeeded.
+  let goal: Cell | null = null;
+  let built: Cell | null = null;
+  if (rng.next() < tier.spiralChance * flavour.spiral) {
+    if (L.attempt(() => (built = L.spiral()))) {
+      goal = built;
+      segments.push("spiral");
+    }
+  }
+  for (const w of [Math.max(baseW, 5), Math.max(baseW, 3)]) {
+    if (goal) break;
+    if (L.attempt(() => (built = L.goal(w)))) goal = built;
+  }
+  // Boxed in: one last corner toward open ground, then the goal.
+  const exits: Dir[] = L.d === S ? [E, W] : [S];
+  for (const nd of exits) {
+    if (goal) break;
+    if (
+      L.attempt(() => {
+        L.setWidth(Math.max(baseW, 3));
+        L.turn(nd, { railless: false, ice: false });
+        built = L.goal(Math.max(baseW, 3));
+      })
+    )
+      goal = built;
+  }
+  return { L, start, goal, segments, laterals, hazards };
 }
 
 /** One layout attempt for `layoutSeed`; the id and name always come from the requested seed. */
@@ -671,37 +458,50 @@ export function generateSource(
   const music: MusicId = MUSIC_IDS[THEME_IDS.indexOf(theme)] ?? "m1-first-steps";
   const name = `${pick(nameRng, ADJECTIVES)} ${pick(nameRng, NOUNS)}`;
 
-  const segments = plan(rng, tier);
-  const baseW = intIn(rng, tier.widths[0], tier.widths[1]);
-  const L = new Layout(rng, opts.difficulty, baseW, tier.startHeight);
-  L.start();
-  const p1: Cell = [L.cx - 1, 2];
-  const p2: Cell = [L.cx, 2];
-  segments.forEach((k, i) => {
-    L.run(k);
-    if (i % 3 === 2 && i < segments.length - 1 && L.rest)
-      L.checkpoints.push({ at: L.rest, radius: 1 });
-  });
-  const goal = L.goal();
+  const plan = planCourse(rng, opts.difficulty, tier, theme);
+  const { L, segments } = plan;
+  let problem: string | null = null;
+  if (!plan.goal) problem = `no room for the goal (${L.lastFail})`;
+  else if (segments.length < tier.segments[0] - 1) problem = `only ${segments.length} segments fit`;
+
   L.g.autoRails();
-  const g = L.g.cropRows(L.y + 1);
+  const b = L.g.bounds() ?? [1, 1, 4, 4];
+  const dx = b[0] - 1;
+  const dy = b[1] - 1;
+  const g = L.g.crop(dx, dy, b[2] - b[0] + 3, b[3] - b[1] + 3);
+  const sh = (c: Cell) => shiftCell(c, dx, dy);
+  const route = (pts: Waypoint[]) => pts.map((p) => ({ ...p, at: sh(p.at) }));
+  const risky = route(L.risky);
+  const safe = route(L.safe);
+  const routes = JSON.stringify(risky) === JSON.stringify(safe) ? [risky] : [risky, safe];
+  const goal = sh(plan.goal ?? [1, 1]);
+  const entities = L.entities.map((e) => shiftEntity(e, dx, dy));
+  const checkpoints = L.checkpoints.map((c) => ({ ...c, at: sh(c.at) }));
 
   const source: LevelSource = {
     format: "mm-level-source/1",
     id: generatedId(opts.difficulty, opts.seed),
     name,
-    author: "Generator",
+    author: `Generator v${GENERATOR_VERSION}`,
     theme,
     music,
     grid: { width: g.width, height: g.height },
     layers: g.toLayers(),
-    start: { p1, p2 },
+    start: { p1: sh(plan.start[0]), p2: sh(plan.start[1]) },
     goal: { at: goal, radius: 0.8 },
-    ...(L.checkpoints.length > 0 ? { checkpoints: L.checkpoints } : {}),
-    ...(L.entities.length > 0 ? { entities: L.entities } : {}),
+    ...(checkpoints.length > 0 ? { checkpoints } : {}),
+    ...(entities.length > 0 ? { entities } : {}),
     timing: { ...DRAFT_TIMING },
     scoring: { progress: 500, goal: tier.goalScore, perSecond: 50, firstHome: 500 },
-    solution: { kind: "waypoints", points: L.points },
+    solution: { kind: "waypoints", points: risky },
   };
-  return { source, segments, layoutSeed };
+  const stats: CourseStats = {
+    shape: classifyShape(plan.laterals),
+    turns: L.turns,
+    forks: L.forks,
+    hazards: plan.hazards,
+    distinctKinds: new Set(segments).size,
+    setPieces: segments.filter((k) => SET_PIECES.has(k)),
+  };
+  return { source, segments, layoutSeed, routes, stats, problem };
 }

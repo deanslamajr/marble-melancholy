@@ -134,6 +134,7 @@ export const WaypointSchema = z
     speed: z.number().min(0.1).max(1).optional(),
     radius: z.number().positive().optional(),
     hold: int.min(0).optional(),
+    timed: z.boolean().optional(),
   })
   .strict();
 

@@ -1,5 +1,5 @@
 // Deterministic waypoint controller (§6.6).
-import { INPUT_MAX_SPEED } from "../../sim/constants";
+import { INPUT_ACCEL, INPUT_MAX_SPEED, MARBLE_RADIUS, TICK_HZ } from "../../sim/constants";
 import { quantizeInt } from "../../sim/quantize";
 import type { PlayerState } from "../../sim/types";
 import type { Waypoint } from "../types";
@@ -14,6 +14,27 @@ export type GroundProbe = (x: number, y: number) => "none" | "static" | "carrier
 
 const PROBE_STEP = 0.25;
 
+/** A hammer as the autopilot sees it: its cell and its phase at any tick. */
+export interface HammerView {
+  readonly cx: number;
+  readonly cy: number;
+  phaseAt(tick: number): { phase: string };
+}
+
+/** The current tick and the level's hammers, for `timed` waypoints (DECISIONS M14). */
+export type HammerProbe = () => { tick: number; hammers: readonly HammerView[] };
+
+const GATE_REACH = MARBLE_RADIUS + 0.15;
+
+/** Seconds to cover `s` from speed `v0` accelerating at `a` up to `vmax`. */
+function timeTo(s: number, v0: number, vmax: number, a: number): number {
+  if (s <= 0) return 0;
+  if (v0 >= vmax) return s / vmax;
+  const da = (vmax * vmax - v0 * v0) / (2 * a);
+  if (s <= da) return (Math.sqrt(v0 * v0 + 2 * a * s) - v0) / a;
+  return (vmax - v0) / a + (s - da) / vmax;
+}
+
 export class Autopilot {
   i = 0;
   holdLeft = 0;
@@ -21,10 +42,13 @@ export class Autopilot {
   deathsAtAdvance = 0;
   failed = false;
   private wasHeld = false;
+  /** A `timed` waypoint's crossing has started; it is not re-checked mid-way. */
+  private gateOpen = false;
 
   constructor(
     readonly points: readonly Waypoint[],
     private readonly probe?: GroundProbe,
+    private readonly hammers?: HammerProbe,
   ) {}
 
   get done(): boolean {
@@ -35,6 +59,7 @@ export class Autopilot {
     this.i++;
     this.holding = false;
     this.holdLeft = 0;
+    this.gateOpen = false;
     this.deathsAtAdvance = p.deaths;
   }
 
@@ -81,6 +106,10 @@ export class Autopilot {
       // Target is on a moving platform that is away: wait (riding any carrier) until it arrives (DECISIONS M10).
       desX = m.carrierVx;
       desY = m.carrierVy;
+    } else if (wp.timed && !this.gateOpen && m.grounded && !this.gateClear(m, dx, dy, dist, wp)) {
+      // Void or a striking hammer on the way: wait in place, riding any carrier (DECISIONS M14).
+      desX = m.carrierVx;
+      desY = m.carrierVy;
     } else if (dist < 1e-9) {
       desX = 0;
       desY = 0;
@@ -93,6 +122,56 @@ export class Autopilot {
     const rawX = (desX - wvx) * AUTOPILOT_GAIN;
     const rawY = (desY - wvy) * AUTOPILOT_GAIN;
     return quantizeInt(rawX, rawY);
+  }
+
+  /**
+   * True when the straight run to the target has floor all the way (a docking platform has closed
+   * the gap) and no hammer cell on it is down while the marble crosses it.
+   */
+  private gateClear(
+    m: { x: number; y: number; vx: number; vy: number },
+    dx: number,
+    dy: number,
+    dist: number,
+    wp: Waypoint,
+  ): boolean {
+    if (this.probe) {
+      const n = Math.ceil(dist / PROBE_STEP);
+      for (let k = 1; k <= n; k++) {
+        if (this.probe(m.x + (dx * k) / n, m.y + (dy * k) / n) === "none") return false;
+      }
+    }
+    const view = this.hammers?.();
+    if (!view || view.hammers.length === 0 || dist < 1e-9) return (this.gateOpen = true);
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const vmax = INPUT_MAX_SPEED * (wp.speed ?? DEFAULT_WP_SPEED);
+    const v0 = Math.max(0, m.vx * ux + m.vy * uy);
+    for (const hm of view.hammers) {
+      let lo = 0;
+      let hi = dist + 0.5;
+      const slab = (p: number, d: number, a: number, b: number): void => {
+        if (Math.abs(d) < 1e-9) {
+          if (p < a || p > b) hi = -1;
+          return;
+        }
+        const s0 = (a - p) / d;
+        const s1 = (b - p) / d;
+        lo = Math.max(lo, Math.min(s0, s1));
+        hi = Math.min(hi, Math.max(s0, s1));
+      };
+      slab(m.x, ux, hm.cx - GATE_REACH, hm.cx + 1 + GATE_REACH);
+      slab(m.y, uy, hm.cy - GATE_REACH, hm.cy + 1 + GATE_REACH);
+      if (lo > hi) continue;
+      const t0 = timeTo(lo, v0, vmax, INPUT_ACCEL) - 0.08;
+      const t1 = timeTo(hi, v0, vmax, INPUT_ACCEL / 2) + 0.12;
+      const k1 = Math.ceil(t1 * TICK_HZ);
+      for (let k = Math.max(0, Math.floor(t0 * TICK_HZ)); k <= k1; k++) {
+        const ph = hm.phaseAt(view.tick + k).phase;
+        if (ph === "drop" || ph === "down") return false;
+      }
+    }
+    return (this.gateOpen = true);
   }
 
   private reachableNow(x: number, y: number, tx: number, ty: number, dist: number): boolean {

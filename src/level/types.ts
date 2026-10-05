@@ -155,6 +155,8 @@ export interface Waypoint {
   speed?: number;
   radius?: number;
   hold?: number;
+  /** Before setting off, wait for floor all the way and for hammers on the way to stay up (M14). */
+  timed?: boolean;
 }
 export interface ScriptSegment {
   ticks: number;

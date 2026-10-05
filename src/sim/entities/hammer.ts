@@ -37,7 +37,8 @@ export class HammerEntity implements SimEntity {
     this.phase = this.phaseAt(-1).phase;
   }
 
-  private phaseAt(tick: number): { phase: HammerPhase; height: number } {
+  /** Phase and head height at `tick`; a pure function of the definition (M14 reads it). */
+  phaseAt(tick: number): { phase: HammerPhase; height: number } {
     const P = this.def.period;
     const tau = mod(tick * DT + this.def.phase, P);
     const upEnd = P - (HAMMER_DROP + HAMMER_DOWN + HAMMER_LIFT);
