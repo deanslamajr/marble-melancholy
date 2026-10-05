@@ -834,6 +834,9 @@
                       "hold": {
                         "type": "integer",
                         "minimum": 0
+                      },
+                      "timed": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
