@@ -1,4 +1,18 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type LaunchOptions } from "@playwright/test";
+
+type Engine = "chromium" | "firefox" | "webkit";
+
+/** Test runs never play sound. WebKit has no mute switch, so it relies on the page staying silent. */
+const MUTED: Record<Engine, LaunchOptions> = {
+  chromium: { args: ["--mute-audio"] },
+  firefox: { firefoxUserPrefs: { "media.volume_scale": "0.0" } },
+  webkit: {},
+};
+
+function device(name: string) {
+  const d = devices[name]!;
+  return { ...d, launchOptions: MUTED[d.defaultBrowserType as Engine] };
+}
 
 export default defineConfig({
   testDir: "tests",
@@ -13,9 +27,9 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", testIgnore: "e2e/mobile.spec.ts", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", testIgnore: "e2e/mobile.spec.ts", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit", testIgnore: "e2e/mobile.spec.ts", use: { ...devices["Desktop Safari"] } },
+    { name: "chromium", testIgnore: "e2e/mobile.spec.ts", use: device("Desktop Chrome") },
+    { name: "firefox", testIgnore: "e2e/mobile.spec.ts", use: device("Desktop Firefox") },
+    { name: "webkit", testIgnore: "e2e/mobile.spec.ts", use: device("Desktop Safari") },
     ...(
       [
         ["pixel", "Pixel 7"],
@@ -23,16 +37,16 @@ export default defineConfig({
         ["iphone", "iPhone 14"],
         ["iphone-landscape", "iPhone 14 landscape"],
       ] as const
-    ).map(([name, device]) => ({
+    ).map(([name, deviceName]) => ({
       name,
       testMatch: "e2e/mobile.spec.ts",
-      use: { ...devices[device] },
+      use: device(deviceName),
     })),
     // Frame timing needs an otherwise idle machine, so it runs alone after the E2E projects.
     {
       name: "perf",
       testMatch: "perf/**/*.spec.ts",
-      use: { ...devices["Desktop Chrome"] },
+      use: device("Desktop Chrome"),
       dependencies: ["chromium", "firefox", "webkit"],
     },
   ],
