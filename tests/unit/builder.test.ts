@@ -19,6 +19,7 @@ import {
   waypointsOf,
 } from "../../src/builder/editor/commands";
 import { History } from "../../src/builder/editor/history";
+import { exampleDraftSource, exampleSource, listExamples } from "../../src/builder/examples";
 import { exportCompiled, exportYaml, importText } from "../../src/builder/editor/io";
 import { decompileToSource } from "../../src/level/compile";
 import { defaultEntity } from "../../src/level/entities/specs";
@@ -200,5 +201,44 @@ describe("import / export", () => {
   it("garbage is reported, not thrown", async () => {
     expect((await importText("{nope", "x.json")).kind).toBe("error");
     expect((await importText("format: wrong\n", "x.yaml")).kind).toBe("error");
+  });
+});
+
+describe("examples (shipped levels as drafts)", () => {
+  it("lists every manifest level, course races first, with their names", () => {
+    const m = manifest();
+    const list = listExamples();
+    const ids = list.map((e) => e.id);
+    expect(ids.slice(0, m.course.length)).toEqual(m.course);
+    for (const id of [...m.course, ...m.fixtures]) expect(ids).toContain(id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(list[0]!.name).toBe(loadCore(m.course[0]!).name);
+    expect(list.every((e) => e.group === "course" || !m.course.includes(e.id))).toBe(true);
+  });
+
+  it("opens each example from its YAML source, with layers, entities and waypoints", async () => {
+    for (const e of listExamples()) {
+      const { source, from } = await exampleSource(e.id);
+      expect(from, e.id).toBe("yaml");
+      expect(source.id).toBe(e.id);
+      expect(source.solution?.kind, e.id).toBe("waypoints");
+    }
+    const { source } = await exampleSource("aerial");
+    expect(source.entities?.length).toBeGreaterThan(0);
+    expect(source.layers.slopes).toBeDefined();
+  });
+
+  it("a draft copy gets a free id and a copy name, drops the course slot, and leaves the original", async () => {
+    const { source } = await exampleSource(manifest().course[0]!);
+    const before = JSON.stringify(source);
+    const copy = exampleDraftSource(source, new Set([source.id, `${source.id}-copy`]));
+    expect(JSON.stringify(source)).toBe(before);
+    expect(copy.id).toBe(`${source.id}-copy2`);
+    expect(copy.name).toBe(`${source.name} copy`.slice(0, 24));
+    expect(copy.course).toBeUndefined();
+    expect(copy.layers).toEqual(source.layers);
+    expect(copy.solution).toEqual(source.solution);
+    const r = await exportCompiled(copy);
+    expect(r.ok).toBe(true);
   });
 });

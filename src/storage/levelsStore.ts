@@ -19,7 +19,7 @@ export interface DraftRecord {
   gridH: number;
 }
 
-const NAME_MAX = 24;
+export const NAME_MAX = 24;
 const ID_MAX = 48;
 
 // ---------- custom (compiled) levels ----------
@@ -91,7 +91,8 @@ export function deleteDraft(id: string): Promise<void> {
   return idbDelete("drafts", id);
 }
 
-function copyLevelId(base: string, taken: Set<string>): string {
+/** `<base>-copy`, `-copy2`, … (max 48 chars), not in `taken`. */
+export function copyLevelId(base: string, taken: Set<string>): string {
   const stem = base.replace(/-copy\d*$/, "");
   for (let n = 1; ; n++) {
     const suffix = n === 1 ? "-copy" : `-copy${n}`;

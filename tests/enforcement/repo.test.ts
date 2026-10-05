@@ -74,13 +74,22 @@ describe("no inline levels", () => {
     expect(hits.map(rel)).toEqual([]);
   });
 
-  it("only src/levels/manifest.ts uses import.meta.glob, and only on /levels/compiled", () => {
+  it("import.meta.glob: the manifest (only on /levels/compiled) and the builder examples", () => {
     const users = srcFiles.filter((f) => read(f).includes("import.meta.glob")).map(rel);
-    expect(users).toEqual(["src/levels/manifest.ts"]);
+    expect(users.sort()).toEqual(["src/builder/examples.ts", "src/levels/manifest.ts"]);
     const text = read(join(SRC, "levels", "manifest.ts"));
     const globs = [...text.matchAll(/import\.meta\.glob\(\s*["']([^"']+)["']/g)].map((m) => m[1]);
     expect(globs.length).toBeGreaterThan(0);
     for (const g of globs) expect(g!.startsWith("/levels/compiled/")).toBe(true);
+  });
+
+  it("the builder's examples read /levels/src only, as lazy raw text (B12)", () => {
+    const text = read(join(SRC, "builder", "examples.ts"));
+    const paths = [...text.matchAll(/["'](!?\/levels\/[^"']*)["']/g)].map((m) => m[1]!);
+    expect(paths.length).toBeGreaterThan(0);
+    for (const p of paths) expect(p).toMatch(/^!?\/levels\/src\//);
+    expect(text).toContain('query: "?raw"');
+    expect(text).not.toMatch(/eager:\s*true/);
   });
 });
 

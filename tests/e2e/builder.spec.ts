@@ -37,3 +37,20 @@ test("Tab switches the editor to the isometric preview", async ({ page }) => {
   await page.keyboard.press("Tab");
   await expect(page.getByTestId("iso-view")).toBeVisible();
 });
+
+test("Examples opens a shipped level as an editable, solvable draft copy", async ({ page }) => {
+  const errors = collectErrors(page);
+  await openGame(page, "#/builder");
+  const select = page.getByTestId("examples-select");
+  await expect(select.locator("option")).not.toHaveCount(0);
+  await select.selectOption({ label: "Skyways" });
+  await page.getByTestId("open-example").click();
+  await expect(page.getByTestId("editor")).toBeVisible();
+  await expect(page.getByTestId("validation-summary")).toHaveClass(/ok/);
+  await page.getByTestId("auto-solve").click();
+  await expect(page.getByTestId("solve-result")).toContainText("GOAL", { timeout: 30_000 });
+
+  await page.goto("/?e2e=1#/builder");
+  await expect(page.getByTestId("drafts-table")).toContainText("Skyways copy");
+  expect(errors).toEqual([]);
+});

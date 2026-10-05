@@ -35,7 +35,8 @@ respawn. Two players race at once on a shared screen.
 ## Level builder (GUI)
 
 Open **Level Builder** from the title screen, or go to `#/builder`. Press **+ New level** to get a
-corridor with a start and a goal, then:
+corridor with a start and a goal, or pick a shipped level under **Examples** and press **Open as
+new draft** to edit a copy of it. Then:
 
 - Sculpt with the tool keys: `H` height brush, `G` set height, `S` slope, `U` surface, `W` walls,
   `X` void, `E` entities, `1`/`2` start, `O` goal, `C` checkpoint, `P` waypoint, `V` select.

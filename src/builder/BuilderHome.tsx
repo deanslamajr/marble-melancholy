@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { navigate } from "../app/router";
 import { TICK_HZ } from "../sim/constants";
 import {
@@ -15,6 +15,13 @@ import {
 } from "../storage/levelsStore";
 import { newDraftSource } from "./editor/commands";
 import { downloadText, importText, pickFile, sourceFromCompiled } from "./editor/io";
+import {
+  EXAMPLE_GROUP_LABEL,
+  exampleDraftSource,
+  exampleSource,
+  listExamples,
+  type ExampleGroup,
+} from "./examples";
 
 function ago(ms: number): string {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
@@ -95,6 +102,27 @@ export function BuilderHome() {
     navigate({ name: "builderDraft", draftId: d.id });
   };
 
+  const examples = useMemo(() => listExamples(), []);
+  const [exampleId, setExampleId] = useState(() => examples[0]?.id ?? "");
+  const [opening, setOpening] = useState(false);
+  const openExample = async () => {
+    if (!exampleId || opening) return;
+    setOpening(true);
+    try {
+      const { source } = await exampleSource(exampleId);
+      const taken = new Set([...takenIds(), ...examples.map((e) => e.id)]);
+      const d = await createDraft(exampleDraftSource(source, taken));
+      navigate({ name: "builderDraft", draftId: d.id });
+    } catch (e) {
+      setMessage(`Could not open example: ${(e as Error).message}`);
+    } finally {
+      setOpening(false);
+    }
+  };
+  const groups = (["course", "fixture", "other"] as ExampleGroup[])
+    .map((g) => ({ g, items: examples.filter((e) => e.group === g) }))
+    .filter((x) => x.items.length > 0);
+
   return (
     <div class="builder-home" data-testid="builder-home">
       <header class="bh-header">
@@ -111,6 +139,37 @@ export function BuilderHome() {
           Import .level.yaml / .level.json
         </button>
       </div>
+      {examples.length > 0 && (
+        <div class="row" data-testid="examples">
+          <label>
+            Examples:{" "}
+            <select
+              value={exampleId}
+              onChange={(e) => setExampleId((e.target as HTMLSelectElement).value)}
+              data-testid="examples-select"
+            >
+              {groups.map(({ g, items }) => (
+                <optgroup key={g} label={EXAMPLE_GROUP_LABEL[g]}>
+                  {items.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <button
+            class="bbtn"
+            disabled={opening}
+            onClick={() => void openExample()}
+            data-testid="open-example"
+          >
+            Open as new draft
+          </button>
+          <span class="dim">A copy you can edit; the shipped level is not changed.</span>
+        </div>
+      )}
       {message && (
         <p class="toast" role="status">
           {message}
