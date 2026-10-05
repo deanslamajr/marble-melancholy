@@ -3,10 +3,13 @@ import { decompileToSource } from "../level/compile";
 import { parseSource } from "../level/parse";
 import type { LevelSource } from "../level/types";
 import { LevelLoader } from "../levels/loader";
-import { allLevelIds, courseIds, fixtureIds, rawLevel } from "../levels/manifest";
+import { allLevelIds, courseIds, extraIds, fixtureIds, rawLevel } from "../levels/manifest";
 import { copyLevelId, NAME_MAX } from "../storage/levelsStore";
 
-export type ExampleGroup = "course" | "fixture" | "other";
+export type ExampleGroup = "course" | "extra" | "fixture" | "other";
+
+/** Display order of the groups in the Examples dropdown. */
+export const EXAMPLE_GROUPS: readonly ExampleGroup[] = ["course", "extra", "fixture", "other"];
 
 export interface ExampleEntry {
   id: string;
@@ -16,6 +19,7 @@ export interface ExampleEntry {
 
 export const EXAMPLE_GROUP_LABEL: Record<ExampleGroup, string> = {
   course: "Main course",
+  extra: "Extra courses",
   fixture: "Mechanic test tracks",
   other: "More levels",
 };
@@ -26,7 +30,7 @@ const SOURCES = import.meta.glob(["/levels/src/**/*.level.yaml", "!/levels/src/*
   import: "default",
 }) as Record<string, () => Promise<string>>;
 
-/** Every shipped level in manifest order: course races, fixtures, then any other compiled level. */
+/** Every shipped level in manifest order: course races, extras, fixtures, then any other level. */
 export function listExamples(): ExampleEntry[] {
   const out: ExampleEntry[] = [];
   const seen = new Set<string>();
@@ -38,6 +42,7 @@ export function listExamples(): ExampleEntry[] {
     out.push({ id, name: typeof raw.name === "string" ? raw.name : id, group });
   };
   for (const id of courseIds()) add(id, "course");
+  for (const id of extraIds()) add(id, "extra");
   for (const id of fixtureIds()) add(id, "fixture");
   for (const id of allLevelIds().sort()) add(id, "other");
   return out;

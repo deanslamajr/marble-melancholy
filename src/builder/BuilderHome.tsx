@@ -17,10 +17,10 @@ import { newDraftSource } from "./editor/commands";
 import { downloadText, importText, pickFile, sourceFromCompiled } from "./editor/io";
 import {
   EXAMPLE_GROUP_LABEL,
+  EXAMPLE_GROUPS,
   exampleDraftSource,
   exampleSource,
   listExamples,
-  type ExampleGroup,
 } from "./examples";
 
 function ago(ms: number): string {
@@ -119,9 +119,10 @@ export function BuilderHome() {
       setOpening(false);
     }
   };
-  const groups = (["course", "fixture", "other"] as ExampleGroup[])
-    .map((g) => ({ g, items: examples.filter((e) => e.group === g) }))
-    .filter((x) => x.items.length > 0);
+  const groups = EXAMPLE_GROUPS.map((g) => ({
+    g,
+    items: examples.filter((e) => e.group === g),
+  })).filter((x) => x.items.length > 0);
 
   return (
     <div class="builder-home" data-testid="builder-home">

@@ -74,12 +74,20 @@ export async function checkCommand(inputs: string[], o: CheckOpts): Promise<numb
     });
     for (const id of m.data.fixtures)
       if (!levels.has(`fixtures/${id}`)) problems.push(`fixture ${id} missing`);
+    const extras = m.data.extras ?? [];
+    for (const id of extras) {
+      const e = levels.get(`extras/${id}`);
+      if (!e) problems.push(`extra ${id} missing`);
+      else if (e.level.course) problems.push(`extra ${id} must not have a course slot`);
+    }
     for (const key of levels.keys()) {
       const [dir, id] = key.split("/") as [string, string];
       if (dir === "core" && !m.data.course.includes(id))
         problems.push(`core/${id} not listed in manifest`);
       if (dir === "fixtures" && !m.data.fixtures.includes(id))
         problems.push(`fixtures/${id} not listed in manifest`);
+      if (dir === "extras" && !extras.includes(id))
+        problems.push(`extras/${id} not listed in manifest`);
     }
     for (const pr of problems)
       printLine(o, fail(o, `${display(mpath)}: ${pr}`), { file: display(mpath), error: pr });

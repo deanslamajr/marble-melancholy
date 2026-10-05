@@ -5,6 +5,7 @@ interface Manifest {
   format: "mm-manifest/1";
   course: string[];
   fixtures: string[];
+  extras?: string[];
 }
 
 const files = import.meta.glob("/levels/compiled/**/*.level.json", {
@@ -36,6 +37,11 @@ export function courseIds(): readonly string[] {
 
 export function fixtureIds(): readonly string[] {
   return manifest.fixtures;
+}
+
+/** Extra courses (single races outside the six-race campaign), in manifest order. */
+export function extraIds(): readonly string[] {
+  return manifest.extras ?? [];
 }
 
 /** Raw (unverified) compiled JSON by level id; pass it to LevelLoader.load before use. */

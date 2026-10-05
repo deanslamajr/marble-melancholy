@@ -26,7 +26,17 @@ export function loadCore(id: string): CompiledLevel {
   return readJson<CompiledLevel>(join(COMPILED, "core", `${id}.level.json`));
 }
 
-export function manifest(): { format: string; course: string[]; fixtures: string[] } {
+/** Compiled extra course by id (levels/compiled/extras/<id>.level.json). */
+export function loadExtra(id: string): CompiledLevel {
+  return readJson<CompiledLevel>(join(COMPILED, "extras", `${id}.level.json`));
+}
+
+export function manifest(): {
+  format: string;
+  course: string[];
+  fixtures: string[];
+  extras: string[];
+} {
   return readJson(join(COMPILED, "manifest.json"));
 }
 

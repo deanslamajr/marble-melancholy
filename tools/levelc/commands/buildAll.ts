@@ -54,6 +54,7 @@ export async function buildAllCommand(o: BuildAllOpts): Promise<number> {
   const produced = new Set<string>();
   const course: Array<{ slot: number; id: string }> = [];
   const fixtures: string[] = [];
+  const extras: string[] = [];
   for (const s of sources) {
     const rel = relative(srcRoot, dirname(s));
     const outDir = join(outRoot, rel);
@@ -63,6 +64,7 @@ export async function buildAllCommand(o: BuildAllOpts): Promise<number> {
       produced.add(resolve(r.outPath));
       if (r.slot !== undefined) course.push({ slot: r.slot, id: r.id });
       else if (basename(rel) === "fixtures") fixtures.push(r.id);
+      else if (basename(rel) === "extras") extras.push(r.id);
     }
   }
   if (code > 0) return code;
@@ -78,11 +80,12 @@ export async function buildAllCommand(o: BuildAllOpts): Promise<number> {
     format: MANIFEST_FORMAT,
     course: course.map((c) => c.id),
     fixtures: fixtures.sort(),
+    extras,
   };
   writeJson(join(outRoot, "manifest.json"), manifest);
   printLine(
     o,
-    `wrote ${display(join(outRoot, "manifest.json"))} (${course.length} races, ${fixtures.length} fixtures)`,
+    `wrote ${display(join(outRoot, "manifest.json"))} (${course.length} races, ${extras.length} extras, ${fixtures.length} fixtures)`,
     {
       manifest,
     },

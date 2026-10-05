@@ -313,5 +313,6 @@ export const ManifestSchema = z
     format: z.literal("mm-manifest/1"),
     course: z.array(z.string()),
     fixtures: z.array(z.string()),
+    extras: z.array(z.string()).optional(),
   })
   .strict();

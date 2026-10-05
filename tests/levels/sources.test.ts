@@ -9,16 +9,18 @@ import { parseSource } from "../../src/level/parse";
 import { serializeSource } from "../../src/level/serialize";
 import { solveSolution } from "../../src/level/solution/solve";
 import { LevelLoader, LevelLoadError } from "../../src/levels/loader";
+import { extraIds } from "../../src/levels/manifest";
 import { listFiles, loadCore, loadSource, SOURCES } from "../helpers";
 
 const coreFiles = listFiles(join(SOURCES, "core"), ".level.yaml").map((f) => `core/${f}`);
+const extraFiles = listFiles(join(SOURCES, "extras"), ".level.yaml").map((f) => `extras/${f}`);
 const fixtureFiles = listFiles(join(SOURCES, "fixtures"), ".level.yaml").map(
   (f) => `fixtures/${f}`,
 );
 const invalidDir = join(SOURCES, "fixtures", "invalid");
 
 describe("parse / serialize", () => {
-  for (const rel of [...coreFiles, ...fixtureFiles]) {
+  for (const rel of [...coreFiles, ...extraFiles, ...fixtureFiles]) {
     it(`${rel} round-trips through serializeSource`, () => {
       const { source } = loadSource(rel);
       const again = parseSource(serializeSource(source));
@@ -56,8 +58,9 @@ describe("invalid sources", () => {
 });
 
 describe("autopilot and passability", () => {
-  it("each core race's waypoint solution reaches the goal without deaths", () => {
-    for (const rel of coreFiles) {
+  it("each core race's and extra course's waypoint solution reaches the goal", () => {
+    expect(extraFiles.length).toBeGreaterThanOrEqual(8);
+    for (const rel of [...coreFiles, ...extraFiles]) {
       const { source, text } = loadSource(rel);
       const p = parseSource(text);
       if (!p.ok) throw new Error(rel);
@@ -105,6 +108,7 @@ describe("autopilot and passability", () => {
 describe("LevelLoader", () => {
   it("loads all six races by id", async () => {
     const course = await LevelLoader.loadCourse();
+    expect(course.every((l) => l.course !== null)).toBe(true);
     expect(course.map((l) => l.id)).toEqual([
       "practice",
       "beginner",
@@ -113,6 +117,17 @@ describe("LevelLoader", () => {
       "silly",
       "ultimate",
     ]);
+  });
+
+  it("loads every extra course by id, outside the six-race course", async () => {
+    const ids = extraIds();
+    expect(ids.length).toBeGreaterThanOrEqual(8);
+    for (const id of ids) {
+      const l = await LevelLoader.load(id);
+      expect(l.id).toBe(id);
+      expect(l.course).toBeNull();
+    }
+    expect((await LevelLoader.loadCourse()).map((l) => l.id)).not.toContain(ids[0]);
   });
 
   it("rejects unknown ids, unstamped and tampered JSON", async () => {

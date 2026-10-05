@@ -26,5 +26,15 @@
     "fx-steelie",
     "fx-walls",
     "fx-wave"
+  ],
+  "extras": [
+    "puddle-hop",
+    "ice-rink-blues",
+    "tea-kettle",
+    "rainy-day-ferry",
+    "clocktower-steps",
+    "acid-garden",
+    "catapult-canyon",
+    "grey-gauntlet"
   ]
 }

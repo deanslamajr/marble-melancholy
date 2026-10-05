@@ -6,10 +6,11 @@ import { computeStamp } from "../../src/level/stamp";
 import { BUILDER_NAME, BUILDER_VERSION } from "../../src/level/version";
 import { TICK_HZ } from "../../src/sim/constants";
 import type { CompiledLevel } from "../../src/level/types";
-import { COMPILED, loadCore, loadFixture, manifest, readJson } from "../helpers";
+import { COMPILED, loadCore, loadExtra, loadFixture, manifest, readJson } from "../helpers";
 
 const all = (): Array<[string, CompiledLevel]> => [
   ...manifest().course.map((id) => [id, loadCore(id)] as [string, CompiledLevel]),
+  ...manifest().extras.map((id) => [id, loadExtra(id)] as [string, CompiledLevel]),
   ...manifest().fixtures.map((id) => [id, loadFixture(id)] as [string, CompiledLevel]),
 ];
 
@@ -38,6 +39,19 @@ describe("committed compiled levels", () => {
     ]);
     expect(m.fixtures.length).toBeGreaterThanOrEqual(15);
     expect(m.course.map((id) => loadCore(id).course?.slot)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("the manifest lists the extra courses, none of which takes a campaign slot", () => {
+    const m = manifest();
+    expect(m.extras.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(m.extras).size).toBe(m.extras.length);
+    for (const id of m.extras) {
+      expect(m.course).not.toContain(id);
+      const l = loadExtra(id);
+      expect(l.course).toBeNull();
+      expect(l.solution.deaths).toBe(0);
+      expect(l.solution.ticks).toBeLessThanOrEqual(l.timing.par * TICK_HZ);
+    }
   });
 
   for (const [id, level] of all()) {

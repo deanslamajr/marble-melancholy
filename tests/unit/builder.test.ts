@@ -19,13 +19,19 @@ import {
   waypointsOf,
 } from "../../src/builder/editor/commands";
 import { History } from "../../src/builder/editor/history";
-import { exampleDraftSource, exampleSource, listExamples } from "../../src/builder/examples";
+import {
+  EXAMPLE_GROUP_LABEL,
+  EXAMPLE_GROUPS,
+  exampleDraftSource,
+  exampleSource,
+  listExamples,
+} from "../../src/builder/examples";
 import { exportCompiled, exportYaml, importText } from "../../src/builder/editor/io";
 import { decompileToSource } from "../../src/level/compile";
 import { defaultEntity } from "../../src/level/entities/specs";
 import { parseSource } from "../../src/level/parse";
 import { SLOPE, SURFACE } from "../../src/level/types";
-import { loadCore, loadFixture, manifest } from "../helpers";
+import { loadCore, loadExtra, loadFixture, manifest } from "../helpers";
 
 describe("edit commands", () => {
   const base = newDraftSource("t", "Test");
@@ -214,6 +220,18 @@ describe("examples (shipped levels as drafts)", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(list[0]!.name).toBe(loadCore(m.course[0]!).name);
     expect(list.every((e) => e.group === "course" || !m.course.includes(e.id))).toBe(true);
+  });
+
+  it("lists the extra courses right after the course races, in manifest order", () => {
+    const m = manifest();
+    expect(m.extras.length).toBeGreaterThanOrEqual(8);
+    const list = listExamples();
+    const extras = list.filter((e) => e.group === "extra");
+    expect(extras.map((e) => e.id)).toEqual(m.extras);
+    expect(list.slice(m.course.length, m.course.length + m.extras.length)).toEqual(extras);
+    for (const e of extras) expect(e.name).toBe(loadExtra(e.id).name);
+    expect(EXAMPLE_GROUP_LABEL.extra).toBe("Extra courses");
+    expect(EXAMPLE_GROUPS.indexOf("extra")).toBe(1);
   });
 
   it("opens each example from its YAML source, with layers, entities and waypoints", async () => {
