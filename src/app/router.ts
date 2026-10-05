@@ -1,7 +1,7 @@
 // Hash router (D10): works from file:// and any static host.
 import { signal } from "@preact/signals";
 
-export type GenDifficulty = "easy" | "medium" | "hard";
+export type GenDifficulty = "easy" | "medium" | "hard" | "expert";
 
 export type Route =
   | { name: "title" }
@@ -10,37 +10,51 @@ export type Route =
   | { name: "custom" }
   | { name: "extras" }
   | { name: "playExtra"; id: string }
-  | { name: "generate"; difficulty?: GenDifficulty; seed?: number }
-  | { name: "playGenerated"; difficulty: GenDifficulty; seed: number }
+  | { name: "generate"; difficulty?: GenDifficulty; seed?: number; version?: number }
+  | { name: "playGenerated"; difficulty: GenDifficulty; seed: number; version?: number }
   | { name: "scores" }
   | { name: "settings" }
   | { name: "builder" }
   | { name: "builderDraft"; draftId: string };
 
-const GEN_DIFFICULTIES: readonly string[] = ["easy", "medium", "hard"];
+export const GEN_DIFFICULTIES: readonly GenDifficulty[] = ["easy", "medium", "hard", "expert"];
 
-/** Difficulty and seed from URL parts, or null when either is malformed. */
-function genParams(d?: string, s?: string): { difficulty: GenDifficulty; seed: number } | null {
-  if (!d || !s || !GEN_DIFFICULTIES.includes(d.toLowerCase()) || !/^\d{1,10}$/.test(s)) return null;
+type GenParams = { difficulty: GenDifficulty; seed: number; version?: number };
+
+/**
+ * Difficulty, seed and optional generator version (`v2`) from URL parts, or null when any is
+ * malformed. Links without a version mean the current generator.
+ */
+function genParams(d?: string, s?: string, v?: string): GenParams | null {
+  const difficulty = d?.toLowerCase() as GenDifficulty | undefined;
+  if (!difficulty || !s || !GEN_DIFFICULTIES.includes(difficulty) || !/^\d{1,10}$/.test(s))
+    return null;
   const seed = Number(s);
   if (seed > 0xffffffff) return null;
-  return { difficulty: d.toLowerCase() as GenDifficulty, seed };
+  if (v === undefined) return { difficulty, seed };
+  const m = /^v(\d{1,3})$/i.exec(v);
+  if (!m || Number(m[1]) < 1) return null;
+  return { difficulty, seed, version: Number(m[1]) };
+}
+
+function genHash(prefix: string, r: GenParams): string {
+  return `${prefix}/${r.difficulty}/${r.seed}${r.version === undefined ? "" : `/v${r.version}`}`;
 }
 
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, "").replace(/\/+$/, "") || "/";
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-  const [a, b, c, d] = parts;
+  const [a, b, c, d, e] = parts;
   if (a === undefined) return { name: "title" };
   if (a === "play" && b === "custom" && c) return { name: "playCustom", id: c };
   if (a === "play" && b === "extra" && c) return { name: "playExtra", id: c };
   if (a === "play" && b === "generated") {
-    const g = genParams(c, d);
+    const g = genParams(c, d, e);
     return g ? { name: "playGenerated", ...g } : { name: "generate" };
   }
   if (a === "extras") return { name: "extras" };
   if (a === "generate") {
-    const g = genParams(b, c);
+    const g = genParams(b, c, d);
     return g ? { name: "generate", ...g } : { name: "generate" };
   }
   if (a === "play") return { name: "play" };
@@ -68,10 +82,10 @@ export function routeHash(r: Route): string {
       return `#/play/extra/${encodeURIComponent(r.id)}`;
     case "generate":
       return r.difficulty && r.seed !== undefined
-        ? `#/generate/${r.difficulty}/${r.seed}`
+        ? genHash("#/generate", { difficulty: r.difficulty, seed: r.seed, version: r.version })
         : "#/generate";
     case "playGenerated":
-      return `#/play/generated/${r.difficulty}/${r.seed}`;
+      return genHash("#/play/generated", r);
     case "scores":
       return "#/scores";
     case "settings":

@@ -159,6 +159,8 @@ describe("router", () => {
     { name: "generate" },
     { name: "generate", difficulty: "hard", seed: 42 },
     { name: "playGenerated", difficulty: "medium", seed: 4294967295 },
+    { name: "playGenerated", difficulty: "expert", seed: 9, version: 2 },
+    { name: "generate", difficulty: "expert", seed: 0, version: 1 },
   ];
 
   it("routeHash and parseRoute round-trip", () => {
@@ -187,5 +189,24 @@ describe("router", () => {
     expect(parseRoute("#/play/generated/easy/-1")).toEqual({ name: "generate" });
     expect(parseRoute("#/play/generated/easy/4294967296")).toEqual({ name: "generate" });
     expect(parseRoute("#/generate/easy/x")).toEqual({ name: "generate" });
+  });
+
+  it("generated-course URLs accept Expert and an optional generator version", () => {
+    expect(parseRoute("#/play/generated/expert/5")).toEqual({
+      name: "playGenerated",
+      difficulty: "expert",
+      seed: 5,
+    });
+    expect(parseRoute("#/play/generated/hard/7/V2")).toEqual({
+      name: "playGenerated",
+      difficulty: "hard",
+      seed: 7,
+      version: 2,
+    });
+    expect(routeHash({ name: "playGenerated", difficulty: "easy", seed: 777 })).toBe(
+      "#/play/generated/easy/777",
+    );
+    expect(parseRoute("#/play/generated/hard/7/v0")).toEqual({ name: "generate" });
+    expect(parseRoute("#/generate/hard/7/beta")).toEqual({ name: "generate" });
   });
 });

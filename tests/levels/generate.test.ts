@@ -45,7 +45,7 @@ describe("generator determinism", () => {
   it("ids encode difficulty and seed; a theme option is honoured", () => {
     const g = generateSource({ seed: 99, difficulty: "hard", theme: "skyways" });
     expect(g.source.id).toBe(generatedId("hard", 99));
-    expect(g.source.id).toBe("gen-hard-99");
+    expect(g.source.id).toBe("gen-v2-hard-99");
     expect(g.source.theme).toBe("skyways");
     expect(g.source.music).toBe("m4-skyways");
     expect(attemptSeed(99, 0)).toBe(99);

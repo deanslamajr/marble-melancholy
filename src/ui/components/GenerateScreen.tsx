@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { navigate, route, routeHash, type GenDifficulty } from "../../app/router";
+import { GEN_DIFFICULTIES, navigate, route, routeHash, type GenDifficulty } from "../../app/router";
 import type { GameController } from "../../game/GameController";
 import type { CompiledLevel } from "../../level/types";
 import { LevelLoader } from "../../levels/loader";
@@ -8,9 +8,15 @@ import { putCustomLevel } from "../../storage/levelsStore";
 import { useController } from "../context";
 import { PixelText } from "./PixelText";
 
-const DIFFICULTIES: readonly GenDifficulty[] = ["easy", "medium", "hard"];
-
-type Ready = { kind: "ready"; level: CompiledLevel; segments: string[]; attempts: number };
+type Ready = {
+  kind: "ready";
+  level: CompiledLevel;
+  segments: string[];
+  attempts: number;
+  turns: number;
+  forks: number;
+  version: number;
+};
 type Status = { kind: "busy" } | Ready | { kind: "error"; message: string };
 
 const cache = new Map<string, Ready>();
@@ -29,7 +35,15 @@ async function generate(difficulty: GenDifficulty, seed: number): Promise<Ready 
     const r = await generateLevel({ seed, difficulty });
     if (!r.ok) return { kind: "error", message: r.error };
     const level = await LevelLoader.load(r.level);
-    const ready: Ready = { kind: "ready", level, segments: r.segments, attempts: r.attempts };
+    const ready: Ready = {
+      kind: "ready",
+      level,
+      segments: r.segments,
+      attempts: r.attempts,
+      turns: r.stats.turns,
+      forks: r.stats.forks,
+      version: r.version,
+    };
     cache.set(key, ready);
     return ready;
   } catch (e) {
@@ -37,18 +51,26 @@ async function generate(difficulty: GenDifficulty, seed: number): Promise<Ready 
   }
 }
 
-export function shareUrl(difficulty: GenDifficulty, seed: number): string {
-  const hash = routeHash({ name: "playGenerated", difficulty, seed });
+/** Shared links name the generator version, so a later generator can say the course changed. */
+export function shareUrl(difficulty: GenDifficulty, seed: number, version?: number): string {
+  const hash = routeHash({ name: "playGenerated", difficulty, seed, version });
   return typeof location === "undefined" ? hash : `${location.origin}${location.pathname}${hash}`;
 }
 
-function show(d: GenDifficulty, s: number): void {
-  navigate({ name: "generate", difficulty: d, seed: s }, { replace: true });
+/** In-app navigation keeps a link's version only until the player changes the course. */
+function show(d: GenDifficulty, s: number, version?: number): void {
+  navigate({ name: "generate", difficulty: d, seed: s, version }, { replace: true });
 }
 
-function playGenerated(c: GameController, level: CompiledLevel, d: GenDifficulty, s: number): void {
-  navigate({ name: "playGenerated", difficulty: d, seed: s }, { replace: true });
-  c.startCustom(level, () => show(d, s), { label: `GENERATED · ${d.toUpperCase()}` });
+function playGenerated(
+  c: GameController,
+  level: CompiledLevel,
+  d: GenDifficulty,
+  s: number,
+  version?: number,
+): void {
+  navigate({ name: "playGenerated", difficulty: d, seed: s, version }, { replace: true });
+  c.startCustom(level, () => show(d, s, version), { label: `GENERATED · ${d.toUpperCase()}` });
 }
 
 export function GenerateScreen() {
@@ -57,12 +79,14 @@ export function GenerateScreen() {
   const params = r.name === "generate" || r.name === "playGenerated" ? r : null;
   const difficulty: GenDifficulty = params?.difficulty ?? "medium";
   const seed = params?.seed;
+  const linkVersion = params?.version;
   const autoPlay = r.name === "playGenerated";
   const [status, setStatus] = useState<Status>({ kind: "busy" });
   const [msg, setMsg] = useState<string | null>(null);
   const [seedText, setSeedText] = useState(seed === undefined ? "" : String(seed));
 
-  const play = (level: CompiledLevel, d: GenDifficulty, s: number) => playGenerated(c, level, d, s);
+  const play = (level: CompiledLevel, d: GenDifficulty, s: number) =>
+    playGenerated(c, level, d, s, linkVersion);
 
   useEffect(() => {
     if (seed === undefined) show(difficulty, randomSeed());
@@ -77,12 +101,12 @@ export function GenerateScreen() {
     void generate(difficulty, seed).then((s) => {
       if (!alive) return;
       setStatus(s);
-      if (s.kind === "ready" && autoPlay) playGenerated(c, s.level, difficulty, seed);
+      if (s.kind === "ready" && autoPlay) playGenerated(c, s.level, difficulty, seed, linkVersion);
     });
     return () => {
       alive = false;
     };
-  }, [c, difficulty, seed, autoPlay]);
+  }, [c, difficulty, seed, autoPlay, linkVersion]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -110,17 +134,19 @@ export function GenerateScreen() {
     }
   };
 
+  const ready = status.kind === "ready" ? status : null;
+
   const copyLink = async () => {
     if (seed === undefined) return;
+    const url = shareUrl(difficulty, seed, ready?.version);
     try {
-      await navigator.clipboard.writeText(shareUrl(difficulty, seed));
+      await navigator.clipboard.writeText(url);
       setMsg("link copied");
     } catch {
-      setMsg(shareUrl(difficulty, seed));
+      setMsg(url);
     }
   };
 
-  const ready = status.kind === "ready" ? status : null;
   const lvl = ready?.level;
   const hazards = lvl ? [...new Set(lvl.entities.map((e) => e.type))] : [];
 
@@ -128,7 +154,7 @@ export function GenerateScreen() {
     <div class="overlay panel-screen generate-screen" data-testid="generate-screen">
       <PixelText size="l">GENERATE COURSE</PixelText>
       <div class="row-buttons" role="radiogroup" aria-label="Difficulty">
-        {DIFFICULTIES.map((d) => (
+        {GEN_DIFFICULTIES.map((d) => (
           <button
             key={d}
             type="button"
@@ -179,8 +205,15 @@ export function GenerateScreen() {
               {(lvl.solution.ticks / TICK_HZ).toFixed(2)}s
             </PixelText>
             <PixelText size="s" tone="dim">
+              {ready.turns} TURNS · {ready.forks} {ready.forks === 1 ? "FORK" : "FORKS"} ·{" "}
               {hazards.length > 0 ? hazards.join(" · ").toUpperCase() : "NO HAZARDS"}
             </PixelText>
+            {linkVersion !== undefined && linkVersion !== ready.version && (
+              <PixelText size="s" tone="warn" class="gen-version-notice">
+                THIS LINK IS FROM GENERATOR V{linkVersion}; SHOWING THE V{ready.version} COURSE FOR
+                THIS SEED
+              </PixelText>
+            )}
           </>
         )}
       </div>

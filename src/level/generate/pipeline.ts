@@ -6,6 +6,7 @@ import { serializeSource } from "../serialize";
 import type { CompiledLevel, LevelSource } from "../types";
 import {
   attemptSeed,
+  GENERATOR_VERSION,
   generateSource,
   type CourseStats,
   type Difficulty,
@@ -33,6 +34,7 @@ export type GenerateLevelResult =
       stats: CourseStats;
       /** Which route the embedded solution took: every risky line, or every safe one. */
       line: "risky" | "safe";
+      version: number;
     }
   | { ok: false; error: string; attempts: number; failures: string[] };
 
@@ -117,6 +119,7 @@ export async function generateLevel(opts: GenerateLevelOptions): Promise<Generat
         segments: gen.segments,
         stats: gen.stats,
         line: line === "risky" ? "risky" : "safe",
+        version: GENERATOR_VERSION,
       };
     }
   }
