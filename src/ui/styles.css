@@ -163,7 +163,8 @@ canvas.world {
   align-items: center;
   justify-content: center;
   gap: calc(2 * var(--uh));
-  padding: calc(4 * var(--uh)) calc(4 * var(--uw));
+  padding: calc(4 * var(--uh) + var(--safe-t)) calc(4 * var(--uw) + var(--safe-r))
+    calc(4 * var(--uh) + var(--safe-b)) calc(4 * var(--uw) + var(--safe-l));
   pointer-events: auto;
 }
 
@@ -200,16 +201,16 @@ canvas.world {
 }
 .version {
   position: absolute;
-  right: calc(2 * var(--uw));
-  bottom: calc(2 * var(--uh));
+  right: calc(2 * var(--uw) + var(--safe-r));
+  bottom: calc(2 * var(--uh) + var(--safe-b));
 }
 .error-line {
   max-width: calc(80 * var(--uw));
 }
 .feedback-link {
   position: absolute;
-  left: calc(2 * var(--uw));
-  bottom: calc(2 * var(--uh));
+  left: calc(2 * var(--uw) + var(--safe-l));
+  bottom: calc(2 * var(--uh) + var(--safe-b));
   padding: calc(1 * var(--uh)) calc(1 * var(--uw));
   font-size: calc(2.6 * var(--uh));
   color: var(--dim);
@@ -520,7 +521,8 @@ canvas.world {
 .hud-row {
   display: flex;
   justify-content: space-between;
-  padding: calc(2 * var(--uh)) calc(2.5 * var(--uw));
+  padding: calc(2 * var(--uh) + var(--safe-t)) calc(2.5 * var(--uw) + var(--safe-r))
+    calc(2 * var(--uh)) calc(2.5 * var(--uw) + var(--safe-l));
 }
 .hud-player {
   display: flex;
@@ -537,7 +539,7 @@ canvas.world {
 }
 .hud-finish {
   position: absolute;
-  top: calc(3 * var(--uh));
+  top: calc(3 * var(--uh) + var(--safe-t));
   left: 50%;
   transform: translateX(-50%);
 }
@@ -553,8 +555,8 @@ canvas.world {
 }
 .fps {
   position: absolute;
-  right: calc(1 * var(--uw));
-  bottom: calc(1 * var(--uh));
+  right: calc(1 * var(--uw) + var(--safe-r));
+  bottom: calc(1 * var(--uh) + var(--safe-b));
   font-size: calc(2 * var(--uh));
   color: var(--dim);
 }
@@ -576,8 +578,8 @@ canvas.world {
 }
 .touch-buttons {
   position: absolute;
-  right: calc(2 * var(--uw));
-  top: calc(2 * var(--uh));
+  right: calc(2 * var(--uw) + var(--safe-r));
+  top: calc(2 * var(--uh) + var(--safe-t));
 }
 .touch-pause {
   font-size: calc(4 * var(--uh));
