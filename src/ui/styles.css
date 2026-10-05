@@ -64,6 +64,8 @@ button {
   /* Overlay units: 1% of the height and width of the largest 16:9 box inside the stage. */
   --uh: min(1cqh, calc(1cqw * 9 / 16));
   --uw: min(1cqw, calc(1cqh * 16 / 9));
+  /* The touch pause button keeps a usable size on small stages. */
+  --pause-size: max(40px, calc(9 * var(--uh)));
   /* Safe-area insets that reach into the stage (zero where letterbox bars already clear them). */
   --safe-t: max(0px, calc(env(safe-area-inset-top, 0px) - (var(--vh) - var(--stage-h)) / 2));
   --safe-b: max(0px, calc(env(safe-area-inset-bottom, 0px) - (var(--vh) - var(--stage-h)) / 2));
@@ -526,8 +528,8 @@ canvas.world {
 }
 /* Keep the timers clear of the touch pause button (top right) on both sides. */
 .stage[data-touch] .hud-row {
-  padding-left: calc(3.5 * var(--uw) + 9 * var(--uh) + var(--safe-l));
-  padding-right: calc(3.5 * var(--uw) + 9 * var(--uh) + var(--safe-r));
+  padding-left: calc(3.5 * var(--uw) + var(--pause-size) + var(--safe-l));
+  padding-right: calc(3.5 * var(--uw) + var(--pause-size) + var(--safe-r));
 }
 .hud-player {
   display: flex;
@@ -587,9 +589,9 @@ canvas.world {
   top: calc(2 * var(--uh) + var(--safe-t));
 }
 .touch-pause {
-  font-size: calc(4 * var(--uh));
-  width: calc(9 * var(--uh));
-  height: calc(9 * var(--uh));
+  font-size: calc(var(--pause-size) * 0.44);
+  width: var(--pause-size);
+  height: var(--pause-size);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.35);
   background: rgba(0, 0, 0, 0.3);
