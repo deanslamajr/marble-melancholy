@@ -36,9 +36,12 @@ Besides the six-race campaign there are single races:
 
 - **Extra Courses** (`#/extras`): eight shipped courses from easy to hard, three of them short
   enough for a phone. Each keeps your best time. Direct link: `#/play/extra/<id>`.
-- **Generate Course** (`#/generate`): pick Easy, Medium or Hard and get a new, solvable course
-  from a seed. Play it, regenerate, save it to Custom Races or copy a share link. A link such as
-  `#/play/generated/medium/1234` always builds the same course.
+- **Generate Course** (`#/generate`): pick Easy, Medium, Hard, Expert, Insane or Nightmare and get
+  a new, solvable course from a seed. Play it, regenerate, save it to Custom Races or copy a share
+  link. A link such as `#/play/generated/insane/1234/v3` always builds the same course. Hard and
+  above are solved by a search over the simulation (a few seconds, with a progress readout), and
+  the screen shows difficulty metrics: fragility, steering changes per second, diagonal input,
+  minimum path width, rail-less and over-void shares, and airborne count.
 - **Custom Races**: levels you made in the builder, imported, or saved from the generator.
 
 ### Phones and full screen
@@ -73,18 +76,18 @@ new draft** to edit a copy of it. Then:
 
 `mmlevel` (run with `npm run mmlevel -- <command>`) does everything the GUI does from the shell:
 
-| Command                              | What it does                                                         |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| `validate <src...>`                  | Parse and validate sources; prints `file:(x,y): error E0NN: …`       |
-| `testplay <file>`                    | Run the level's solution; prints `GOAL at 3.70 s` or why it failed   |
-| `trace <file> [--every 30]`          | Tick-by-tick marble position, speed, status and current waypoint     |
-| `path <file>`                        | ASCII map of the path the solution took, with death cells            |
-| `compile <src...> [--out dir]`       | Validate, solve and stamp; writes `.level.json`                      |
-| `build-all`                          | Compile everything in `levels/src` into `levels/compiled` + manifest |
-| `check <compiled...> [--no-replay]`  | Verify schema, stamp and embedded replay of compiled levels          |
-| `info <file>`                        | Summary of a source or compiled level                                |
-| `schema [--out dir]`                 | Write JSON Schemas for both formats                                  |
-| `generate --seed N [--difficulty d]` | Generate a solvable course (easy, medium or hard) from a seed        |
+| Command                              | What it does                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `validate <src...>`                  | Parse and validate sources; prints `file:(x,y): error E0NN: …`          |
+| `testplay <file>`                    | Run the level's solution; prints `GOAL at 3.70 s` or why it failed      |
+| `trace <file> [--every 30]`          | Tick-by-tick marble position, speed, status and current waypoint        |
+| `path <file>`                        | ASCII map of the path the solution took, with death cells               |
+| `compile <src...> [--out dir]`       | Validate, solve and stamp; writes `.level.json`                         |
+| `build-all`                          | Compile everything in `levels/src` into `levels/compiled` + manifest    |
+| `check <compiled...> [--no-replay]`  | Verify schema, stamp and embedded replay of compiled levels             |
+| `info <file>`                        | Summary of a source or compiled level                                   |
+| `schema [--out dir]`                 | Write JSON Schemas for both formats                                     |
+| `generate --seed N [--difficulty d]` | Generate a solvable course (easy … nightmare) from a seed, with metrics |
 
 `generate` prints the YAML source to stdout; `--out file.level.yaml` writes it instead,
 `--compiled file.level.json` also writes the stamped level, and `--theme` picks a theme. The
