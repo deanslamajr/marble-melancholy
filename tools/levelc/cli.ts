@@ -91,7 +91,7 @@ program
   .command("generate")
   .description("generate a procedural course (validated, solved and stamped like any other level)")
   .requiredOption("--seed <n>", "integer seed 0..4294967295")
-  .option("--difficulty <d>", "easy | medium | hard | expert", "medium")
+  .option("--difficulty <d>", "easy | medium | hard | expert | insane | nightmare", "medium")
   .option("--theme <id>", "theme id (default: chosen from the seed)")
   .option("--out <file>", "write the .level.yaml source here (default: stdout)")
   .option("--compiled <file>", "also write the stamped .level.json here")

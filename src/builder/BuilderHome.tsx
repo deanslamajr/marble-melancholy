@@ -136,6 +136,7 @@ export function BuilderHome() {
   const [genDifficulty, setGenDifficulty] = useState<Difficulty>("medium");
   const [genSeed, setGenSeed] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState<number | null>(null);
   const onGenerate = async () => {
     if (generating) return;
     const text = genSeed.trim();
@@ -145,8 +146,20 @@ export function BuilderHome() {
     }
     const seed = text === "" ? Math.floor(Math.random() * 1_000_000_000) : Number(text);
     setGenerating(true);
+    setGenProgress(null);
     try {
-      const r = await generateLevel({ seed, difficulty: genDifficulty });
+      let last = performance.now();
+      const r = await generateLevel({
+        seed,
+        difficulty: genDifficulty,
+        // Yield to the page now and then so the search does not freeze the builder.
+        onProgress: async (p) => {
+          if (performance.now() - last < 30) return;
+          setGenProgress(p.phase === "solve" ? p.progress : null);
+          await new Promise((res) => setTimeout(res, 0));
+          last = performance.now();
+        },
+      });
       if (!r.ok) {
         setMessage(r.error);
         return;
@@ -247,7 +260,11 @@ export function BuilderHome() {
           onClick={() => void onGenerate()}
           data-testid="generate-draft"
         >
-          {generating ? "Generating…" : "Generate draft"}
+          {generating
+            ? genProgress === null
+              ? "Generating…"
+              : `Solving ${Math.round(genProgress * 100)}%…`
+            : "Generate draft"}
         </button>
         <span class="dim">A new solved draft from a procedural course.</span>
       </div>

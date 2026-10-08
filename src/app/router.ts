@@ -1,7 +1,7 @@
 // Hash router (D10): works from file:// and any static host.
 import { signal } from "@preact/signals";
 
-export type GenDifficulty = "easy" | "medium" | "hard" | "expert";
+export type GenDifficulty = "easy" | "medium" | "hard" | "expert" | "insane" | "nightmare";
 
 export type Route =
   | { name: "title" }
@@ -17,7 +17,14 @@ export type Route =
   | { name: "builder" }
   | { name: "builderDraft"; draftId: string };
 
-export const GEN_DIFFICULTIES: readonly GenDifficulty[] = ["easy", "medium", "hard", "expert"];
+export const GEN_DIFFICULTIES: readonly GenDifficulty[] = [
+  "easy",
+  "medium",
+  "hard",
+  "expert",
+  "insane",
+  "nightmare",
+];
 
 type GenParams = { difficulty: GenDifficulty; seed: number; version?: number };
 

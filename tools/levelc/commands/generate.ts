@@ -51,7 +51,9 @@ export async function generateCommand(o: GenerateOpts): Promise<number> {
     return 2;
   }
   const s = r.level.solution;
-  const summary = `${ok(o, "OK")} ${r.level.id} "${r.level.name}" ${difficulty} seed=${seed} attempts=${r.attempts} v=${r.version} shape=${r.stats.shape} turns=${r.stats.turns} forks=${r.stats.forks} line=${r.line} segments=${r.segments.join(",")} GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s par=${r.level.timing.par} limit=${r.level.timing.timeLimit}`;
+  const m = r.metrics;
+  const summary = `${ok(o, "OK")} ${r.level.id} "${r.level.name}" ${difficulty} seed=${seed} attempts=${r.attempts} v=${r.version} shape=${r.stats.shape} turns=${r.stats.turns} forks=${r.stats.forks} line=${r.line} solver=${r.solver}${r.stats.inverted ? " inverted" : ""} segments=${r.segments.join(",")} GOAL tick=${s.ticks} time=${(s.ticks / 120).toFixed(2)}s par=${r.level.timing.par} limit=${r.level.timing.timeLimit}
+  metrics: fragility=${m.fragility}% robustness=${m.robustness}% dirChanges=${m.dirChanges}/s offAxis=${m.offAxis}% minWidth=${m.minWidth} narrow=${m.narrow}% railless=${m.railless}% overVoid=${m.overVoid}% airborne=${m.airborne}`;
   const json = {
     ok: true,
     id: r.level.id,
@@ -63,7 +65,10 @@ export async function generateCommand(o: GenerateOpts): Promise<number> {
     version: r.version,
     stats: r.stats,
     line: r.line,
+    solver: r.solver,
     segments: r.segments,
+    metrics: r.metrics,
+    rejected: r.failures,
     ticks: s.ticks,
     par: r.level.timing.par,
     timeLimit: r.level.timing.timeLimit,
