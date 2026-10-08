@@ -131,7 +131,9 @@ export function checkFairness(l: CompiledLevel, label: string, gap: number): voi
     expect(res.reached, `${label} holding direction ${i * 45}° finishes`).toBe(false);
   }
 
-  const hz = l.entities.filter((e) => HAZARDS.has(e.type)).map((e) => e.at as readonly number[]);
+  const hz = l.entities.flatMap((e) =>
+    HAZARDS.has(e.type) && "at" in e ? [e.at as readonly number[]] : [],
+  );
   for (const c of l.checkpoints) {
     for (const h of hz) {
       const d = Math.hypot(c.at[0] - h[0]!, c.at[1] - h[1]!);

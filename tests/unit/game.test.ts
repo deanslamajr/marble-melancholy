@@ -185,7 +185,13 @@ describe("router", () => {
       difficulty: "hard",
       seed: 7,
     });
-    expect(parseRoute("#/play/generated/insane/7")).toEqual({ name: "generate" });
+    expect(parseRoute("#/play/generated/nightmare/7/v3")).toEqual({
+      name: "playGenerated",
+      difficulty: "nightmare",
+      seed: 7,
+      version: 3,
+    });
+    expect(parseRoute("#/play/generated/ludicrous/7")).toEqual({ name: "generate" });
     expect(parseRoute("#/play/generated/easy/-1")).toEqual({ name: "generate" });
     expect(parseRoute("#/play/generated/easy/4294967296")).toEqual({ name: "generate" });
     expect(parseRoute("#/generate/easy/x")).toEqual({ name: "generate" });
