@@ -1,9 +1,12 @@
 // Generated source → the normal validate → solve → compile → stamp pipeline, with bounded retries.
 // Uses compileLevel (and serializeSource for the stamp), so it belongs in lazily loaded chunks.
+// Hard and above solve with the beam search (L25) and embed its replay; every tier is measured
+// (L27) and Hard and above must pass the fairness floor (L28) and their tier's fragility floor.
 import { TICK_HZ } from "../../sim/constants";
 import { compileLevel } from "../compile";
 import { serializeSource } from "../serialize";
-import type { CompiledLevel, LevelSource } from "../types";
+import { Guide, searchSteps, type SearchResult } from "../solution/search";
+import type { CompiledLevel, LevelSource, PlayableLevel, SolutionSource } from "../types";
 import {
   attemptSeed,
   GENERATOR_VERSION,
@@ -13,13 +16,42 @@ import {
   type GenerateOptions,
   type SegmentKind,
 } from "./generate";
+import type { GuidePoint } from "./layout";
+import { measureCourse, type CourseMetrics } from "./metrics";
+import { TIERS } from "./tiers";
 
 export const MAX_ATTEMPTS = 8;
+/** Search tiers retry fewer layouts: each failed search spends its whole tick budget. */
+export const MAX_SEARCH_ATTEMPTS = 5;
 /** Longest accepted solution; longer layouts are retried so time limits stay inside 99 s. */
 export const MAX_SOLUTION_SECONDS = 65;
 
+/**
+ * Stated generation budget per course, average over seeds, in milliseconds (Node on a laptop;
+ * includes retries, solving, metrics and stamping). Browsers are within about 1.5× of this.
+ */
+export const GEN_BUDGET_MS: Record<Difficulty, number> = {
+  easy: 300,
+  medium: 400,
+  hard: 1500,
+  expert: 2000,
+  insane: 2500,
+  nightmare: 3000,
+};
+
+export type GeneratePhase = "layout" | "solve" | "measure" | "stamp";
+
+export interface GenerateProgress {
+  attempt: number;
+  phase: GeneratePhase;
+  /** 0..1 within the current phase (the solver's progress along the course). */
+  progress: number;
+}
+
 export interface GenerateLevelOptions extends GenerateOptions {
   maxAttempts?: number;
+  /** Called between solver slices and phases; a UI can await a repaint here. */
+  onProgress?: (p: GenerateProgress) => void | Promise<void>;
 }
 
 export type GenerateLevelResult =
@@ -32,32 +64,56 @@ export type GenerateLevelResult =
       layoutSeed: number;
       segments: SegmentKind[];
       stats: CourseStats;
+      metrics: CourseMetrics;
       /** Which route the embedded solution took: every risky line, or every safe one. */
       line: "risky" | "safe";
+      /** How the embedded solution was found. */
+      solver: "search" | "autopilot";
       version: number;
+      /** Why earlier attempts or routes were rejected. */
+      failures: string[];
     }
   | { ok: false; error: string; attempts: number; failures: string[] };
 
-/** par = ceil(solution × factor + slack); limit = max(par + 5, ceil(par × limit)) capped at 99 (L20). */
-const PAR: Record<Difficulty, { factor: number; slack: number; limit: number }> = {
-  easy: { factor: 1.2, slack: 3, limit: 1.6 },
-  medium: { factor: 1.12, slack: 2, limit: 1.45 },
-  hard: { factor: 1.08, slack: 1, limit: 1.32 },
-  expert: { factor: 1.04, slack: 0.5, limit: 1.25 },
-};
-
-/** Par and time limit from the solution time; null when the course is too long for D36 or W103. */
+/** par = ceil(solution × factor + slack); limit = max(par + 5, ceil(par × limit)) capped at 99 (L20, L29). */
 export function timingFor(
   difficulty: Difficulty,
   ticks: number,
 ): { timeLimit: number; par: number; timeBonus: number } | null {
   const sec = ticks / TICK_HZ;
   if (sec > MAX_SOLUTION_SECONDS) return null;
-  const t = PAR[difficulty];
+  const t = TIERS[difficulty].par;
   const par = Math.ceil(sec * t.factor + t.slack);
   const timeLimit = Math.min(99, Math.max(par + 5, Math.ceil(par * t.limit)));
   if (par >= timeLimit || par > timeLimit * 0.8) return null;
   return { timeLimit, par, timeBonus: 5 };
+}
+
+function diagText(ds: ReadonlyArray<{ code: string; message: string }>): string {
+  return ds.map((d) => `${d.code} ${d.message}`).join("; ");
+}
+
+function failedBeforeFork(guides: GuidePoint[][], r: number, progress: number): boolean {
+  const a = guides[r]!;
+  const b = guides[r + 1]!;
+  let n = 0;
+  while (n < a.length && n < b.length && a[n]![0] === b[n]![0] && a[n]![1] === b[n]![1]) n++;
+  if (n < 2) return false;
+  return progress * new Guide(a).total < new Guide(a.slice(0, n)).total - 1;
+}
+
+/** The waypoint autopilot's solution for a draft source (v2 behaviour). */
+async function autopilot(
+  source: LevelSource,
+): Promise<{ runs: number[]; ticks: number; deaths: number } | string> {
+  const draft = await compileLevel(source, { allowUnsolved: true });
+  if (!draft.ok) return diagText(draft.diagnostics);
+  const solution = "draft" in draft ? draft.draft.solution : null;
+  if (!solution) {
+    const d = "draft" in draft ? draft.diagnostics[0] : undefined;
+    return d ? `${d.code} ${d.message}` : "no solution";
+  }
+  return solution;
 }
 
 /**
@@ -66,9 +122,15 @@ export function timingFor(
  * Each layout is solved along its risky route first and falls back to the safe one (L18).
  */
 export async function generateLevel(opts: GenerateLevelOptions): Promise<GenerateLevelResult> {
-  const max = opts.maxAttempts ?? MAX_ATTEMPTS;
+  const tier = TIERS[opts.difficulty];
+  const search = tier.solver === "search";
+  const max = opts.maxAttempts ?? (search ? MAX_SEARCH_ATTEMPTS : MAX_ATTEMPTS);
   const failures: string[] = [];
+  const report = async (attempt: number, phase: GeneratePhase, progress: number) => {
+    if (opts.onProgress) await opts.onProgress({ attempt, phase, progress });
+  };
   for (let attempt = 0; attempt < max; attempt++) {
+    await report(attempt, "layout", 0);
     const gen = generateSource(opts, attemptSeed(opts.seed, attempt));
     if (gen.problem) {
       failures.push(gen.problem);
@@ -77,38 +139,97 @@ export async function generateLevel(opts: GenerateLevelOptions): Promise<Generat
     for (let r = 0; r < gen.routes.length; r++) {
       const line = r === 0 && gen.routes.length > 1 ? "risky" : "safe";
       const label = gen.routes.length > 1 ? `${line} line: ` : "";
-      const draftSource: LevelSource = {
+      const waypoints: LevelSource = {
         ...gen.source,
         solution: { kind: "waypoints", points: gen.routes[r]! },
       };
-      const draft = await compileLevel(draftSource, { allowUnsolved: true });
-      if (!draft.ok) {
-        failures.push(label + draft.diagnostics.map((d) => `${d.code} ${d.message}`).join("; "));
+      const bare = await compileLevel(
+        { ...gen.source, solution: undefined },
+        { allowUnsolved: true },
+      );
+      if (!bare.ok || !("draft" in bare)) {
+        failures.push(label + ("diagnostics" in bare ? diagText(bare.diagnostics) : "no draft"));
         break;
       }
-      const solution = "draft" in draft ? draft.draft.solution : null;
+      const level: PlayableLevel = bare.draft;
+
+      let solution: SolutionSource | null = null;
+      let runs: number[] = [];
+      let ticks = 0;
+      let solver: "search" | "autopilot" = "autopilot";
+      if (search) {
+        await report(attempt, "solve", 0);
+        const it = searchSteps(level, {
+          guide: gen.guides[r]!,
+          beam: tier.beam,
+          budget: tier.budget,
+          maxTicks: MAX_SOLUTION_SECONDS * TICK_HZ,
+        });
+        let res: SearchResult;
+        for (;;) {
+          const step = it.next();
+          if (step.done) {
+            res = step.value;
+            break;
+          }
+          await report(attempt, "solve", step.value.progress);
+        }
+        if (res.ok) {
+          runs = res.runs;
+          ticks = res.ticks;
+          solution = { kind: "replay", runs, expectedTicks: ticks };
+          solver = "search";
+        } else {
+          failures.push(
+            `${label}search ${res.reason} at ${(res.progress * 100).toFixed(0)}% (${res.pos.map((v) => v.toFixed(1)).join(",")})`,
+          );
+          // The routes only differ after the first fork; failing before it dooms both.
+          if (r + 1 < gen.routes.length && failedBeforeFork(gen.guides, r, res.progress)) break;
+          continue;
+        }
+      }
       if (!solution) {
-        const d = "draft" in draft ? draft.diagnostics[0] : undefined;
-        failures.push(label + (d ? `${d.code} ${d.message}` : "no solution"));
-        continue;
+        const ap = await autopilot(waypoints);
+        if (typeof ap === "string") {
+          failures.push(label + ap);
+          continue;
+        }
+        if (ap.deaths > 0) {
+          failures.push(`${label}solution died ${ap.deaths} time(s)`);
+          continue;
+        }
+        runs = ap.runs;
+        ticks = ap.ticks;
+        solution = waypoints.solution!;
+        solver = "autopilot";
       }
-      if (solution.deaths > 0) {
-        failures.push(`${label}solution died ${solution.deaths} time(s)`);
-        continue;
-      }
-      const timing = timingFor(opts.difficulty, solution.ticks);
+      const timing = timingFor(opts.difficulty, ticks);
       if (!timing) {
-        failures.push(`${label}solution too long (${(solution.ticks / TICK_HZ).toFixed(1)} s)`);
+        failures.push(`${label}solution too long (${(ticks / TICK_HZ).toFixed(1)} s)`);
         continue;
       }
-      const source: LevelSource = { ...draftSource, timing };
+
+      await report(attempt, "measure", 0);
+      const metrics = measureCourse(level, runs, gen.layoutSeed);
+      if (metrics.robustness < tier.minRobust) {
+        failures.push(`${label}unfair: worst window ${metrics.robustness}% under small noise`);
+        continue;
+      }
+      if (metrics.fragility < tier.minFragility) {
+        failures.push(`${label}too forgiving: fragility ${metrics.fragility}%`);
+        continue;
+      }
+
+      await report(attempt, "stamp", 0);
+      const source: LevelSource = { ...gen.source, timing, solution };
       const sourceText = serializeSource(source);
       const res = await compileLevel(source, { sourceText });
       if (!res.ok || !("level" in res)) {
-        const ds = res.ok ? res.diagnostics : res.diagnostics;
-        failures.push(
-          label + (ds.map((d) => `${d.code} ${d.message}`).join("; ") || "compile failed"),
-        );
+        failures.push(label + (diagText(res.diagnostics) || "compile failed"));
+        continue;
+      }
+      if (res.level.solution.deaths > 0) {
+        failures.push(`${label}solution died ${res.level.solution.deaths} time(s)`);
         continue;
       }
       return {
@@ -120,8 +241,11 @@ export async function generateLevel(opts: GenerateLevelOptions): Promise<Generat
         layoutSeed: gen.layoutSeed,
         segments: gen.segments,
         stats: gen.stats,
+        metrics,
         line: line === "risky" ? "risky" : "safe",
+        solver,
         version: GENERATOR_VERSION,
+        failures,
       };
     }
   }

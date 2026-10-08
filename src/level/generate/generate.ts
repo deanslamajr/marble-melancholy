@@ -1,6 +1,7 @@
 // Procedural course generator: seed + difficulty (+ theme) → LevelSource with waypoint routes.
 // Pure and deterministic (D06, D07): mulberry32 only, no transcendental Math, no clocks.
 // Generator v2 (DECISIONS L15–L24): switchback layouts on the full grid, forks, set-pieces.
+// Generator v3 (L25–L30): precision pieces, Insane and Nightmare tiers, inverted gravity.
 import { fnv1a32 } from "../../core/hash";
 import { Rng } from "../../core/rng";
 import {
@@ -14,7 +15,8 @@ import {
   type Waypoint,
 } from "../types";
 import { E, S, W, turnDir, type Dir } from "./grid";
-import { Layout, SIZE, type CornerStyle } from "./layout";
+import { SIZE, type CornerStyle, type GuidePoint } from "./layout";
+import { Layout3 } from "./pieces";
 import {
   DIFFICULTIES,
   DROPPING_RISKS,
@@ -32,7 +34,7 @@ import {
 export { DIFFICULTIES, TIERS, type Difficulty, type SegmentKind };
 
 /** Bumped whenever the same seed may produce a different course (L24). */
-export const GENERATOR_VERSION = 2;
+export const GENERATOR_VERSION = 3;
 
 export interface GenerateOptions {
   seed: number;
@@ -49,6 +51,8 @@ export interface CourseStats {
   hazards: number;
   distinctKinds: number;
   setPieces: SegmentKind[];
+  /** Level-wide inverted slope gravity (physics.slopeGravityScale −1). */
+  inverted: boolean;
 }
 
 export interface GeneratedSource {
@@ -59,6 +63,8 @@ export interface GeneratedSource {
   layoutSeed: number;
   /** Waypoint routes in the order the pipeline tries them: every risky line, then every safe one. */
   routes: Waypoint[][];
+  /** Solver guide polylines (world units, start first), one per route. */
+  guides: GuidePoint[][];
   stats: CourseStats;
   /** Set when the layout was abandoned (the pipeline then tries the next attempt seed). */
   problem: string | null;
@@ -177,7 +183,7 @@ function shiftEntity(e: EntitySource, dx: number, dy: number): EntitySource {
 }
 
 interface Plan {
-  L: Layout;
+  L: Layout3;
   start: [Cell, Cell];
   goal: Cell | null;
   segments: SegmentKind[];
@@ -199,7 +205,8 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
         ? 10 + rng.nextInt(10)
         : SIZE - 12 - rng.nextInt(10)
       : 50 + rng.nextInt(28);
-  const L = new Layout(rng, difficulty, tier, baseW, tier.startHeight, startX);
+  const L = new Layout3(rng, difficulty, tier, baseW, tier.startHeight, startX);
+  const cornerW = tier.cornerW ?? Math.max(baseW, 3);
   let start: [Cell, Cell] = [
     [0, 0],
     [0, 0],
@@ -223,6 +230,8 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
   const segments: SegmentKind[] = [];
   const uses = new Map<SegmentKind, number>();
   const cap = count >= 11 ? 3 : 2;
+  // Each set-piece at most once per course (twice on 13+ segments); v2 repeated them (L30).
+  const setCap = count >= 13 ? 2 : 1;
   const laterals: Dir[] = [];
   let hazards = 0;
   let chain = 0;
@@ -292,7 +301,8 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
         const info = KIND_INFO[k];
         return (
           k !== last &&
-          (uses.get(k) ?? 0) < cap &&
+          (uses.get(k) ?? 0) < (SET_PIECES.has(k) ? setCap : cap) &&
+          (k !== "hairpin" || L.d !== S) &&
           (L.canDrop || info.level) &&
           info.drop <= L.h - 1 &&
           (!info.hazard || hazards < tier.maxHazards) &&
@@ -324,6 +334,9 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
         }
       });
       if (ok) {
+        if (k === "hairpin") laterals.push(L.d);
+        // Plain lanes lose their rails on the extreme tiers (L26).
+        else if (!precision && !info.airborne && L.chance(tier.bareLanes)) L.openPiece();
         record(k, precision, info.hazard, info.airborne);
         return true;
       }
@@ -333,7 +346,18 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
 
   const corner = (): CornerStyle => {
     const prev = segments[segments.length - 1];
-    const fast = prev === "speed" || prev === "steep" || prev === "slope" || prev === "jump";
+    const fast =
+      prev === "speed" ||
+      prev === "steep" ||
+      prev === "slope" ||
+      prev === "jump" ||
+      prev === "runup" ||
+      prev === "kicker" ||
+      prev === "catapult" ||
+      prev === "pipeTarget";
+    const both = tier.corner.both ?? 0;
+    if (!fast && both > 0 && chain < tier.maxChain && rng.next() < both)
+      return { ice: true, railless: true };
     const iceP = tier.corner.ice * (theme === "topsy" ? 1.5 : 1);
     const ice = !fast && rng.next() < iceP;
     const railless = !fast && !ice && chain < tier.maxChain && rng.next() < tier.corner.railless;
@@ -362,7 +386,7 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
       // Look ahead before committing: a run that would soon hit earlier ground (a fork's detour,
       // the tier above) is extended by one more segment instead (at most twice per corner).
       const clear = choices.filter((nd) => {
-        L.setWidth(Math.max(baseW, 3));
+        L.setWidth(cornerW);
         return L.clearAhead(nd === S ? 10 : 16, nd, 2);
       });
       if (clear.length === 0 && extend < 2) {
@@ -376,8 +400,9 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
       for (const nd of [...clear, ...choices.filter((c) => !clear.includes(c))]) {
         if (
           L.attempt(() => {
-            L.setWidth(Math.max(baseW, 3));
+            L.setWidth(cornerW);
             L.turn(nd, style);
+            if (style.railless && tier.cornerW !== null) L.openPiece();
           })
         ) {
           turned = true;
@@ -416,7 +441,7 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
     }
     stuck = 0;
     legLeft--;
-    if (i % 3 === 2 && L.rest && L.checkpoints.length < 12)
+    if ((i + 1) % tier.checkpointEvery === 0 && L.rest && L.checkpoints.length < 14)
       L.checkpoints.push({ at: L.rest, radius: 1 });
     if (L.pending && segments[segments.length - 1] !== "shortcut" && segments.length >= closeAt) {
       L.closeShortcut();
@@ -451,6 +476,22 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
     )
       goal = built;
   }
+  // Still boxed in: two corners (a short dog-leg) before the goal.
+  for (const a of exits) {
+    for (const b of a === S ? [E, W] : [S]) {
+      if (goal) break;
+      if (
+        L.attempt(() => {
+          L.setWidth(Math.max(baseW, 3));
+          L.turn(a, { railless: false, ice: false });
+          L.flat(3);
+          L.turn(b, { railless: false, ice: false });
+          built = L.goal(Math.max(baseW, 3));
+        })
+      )
+        goal = built;
+    }
+  }
   return { L, start, goal, segments, laterals, hazards };
 }
 
@@ -467,6 +508,8 @@ export function generateSource(
   const name = `${pick(nameRng, ADJECTIVES)} ${pick(nameRng, NOUNS)}`;
 
   const plan = planCourse(rng, opts.difficulty, tier, theme);
+  // Rolled apart from the layout stream so the lower tiers keep their v2 layouts.
+  const inverted = tier.inverted > 0 && new Rng(layoutSeed ^ 0x5bd1e995).next() < tier.inverted;
   const { L, segments } = plan;
   let problem: string | null = null;
   if (!plan.goal) problem = `no room for the goal (${L.lastFail})`;
@@ -482,6 +525,13 @@ export function generateSource(
   const risky = route(L.risky);
   const safe = route(L.safe);
   const routes = JSON.stringify(risky) === JSON.stringify(safe) ? [risky] : [risky, safe];
+  const p1: GuidePoint = [plan.start[0][0] - dx + 0.5, plan.start[0][1] - dy + 0.5];
+  const guide = (pts: readonly GuidePoint[]): GuidePoint[] => [
+    p1,
+    ...pts.map((q): GuidePoint => [q[0] - dx, q[1] - dy]),
+  ];
+  const guides =
+    routes.length > 1 ? [guide(L.riskyGuide), guide(L.safeGuide)] : [guide(L.riskyGuide)];
   const goal = sh(plan.goal ?? [1, 1]);
   const entities = L.entities.map((e) => shiftEntity(e, dx, dy));
   const checkpoints = L.checkpoints.map((c) => ({ ...c, at: sh(c.at) }));
@@ -501,6 +551,7 @@ export function generateSource(
     ...(entities.length > 0 ? { entities } : {}),
     timing: { ...DRAFT_TIMING },
     scoring: { progress: 500, goal: tier.goalScore, perSecond: 50, firstHome: 500 },
+    ...(inverted ? { physics: { slopeGravityScale: -1 } } : {}),
     solution: { kind: "waypoints", points: risky },
   };
   const stats: CourseStats = {
@@ -510,6 +561,7 @@ export function generateSource(
     hazards: plan.hazards,
     distinctKinds: new Set(segments).size,
     setPieces: segments.filter((k) => SET_PIECES.has(k)),
+    inverted,
   };
-  return { source, segments, layoutSeed, routes, stats, problem };
+  return { source, segments, layoutSeed, routes, guides, stats, problem };
 }

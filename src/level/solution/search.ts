@@ -72,6 +72,10 @@ const PURSUIT: ReadonlyArray<readonly [number, number]> = [
 /** Raw stick directions, tried only while widened after a dead end. */
 const RAW = 8;
 const DOOM_PENALTY = 1000;
+/** Progress (cells) traded per cell of distance from the guide line. */
+const LATERAL = 0.25;
+/** Decisions without 0.5 cells of new progress before the search counts as stuck. */
+const STALL_LAYERS = 60;
 
 // ---------- guide polyline ----------
 
@@ -80,6 +84,8 @@ export class Guide {
   readonly ys: number[] = [];
   readonly cum: number[] = [0];
   readonly total: number;
+  /** Turn angle at each vertex (0 at the ends). */
+  readonly turns: number[] = [];
 
   constructor(points: ReadonlyArray<readonly [number, number]>) {
     for (const [x, y] of points) {
@@ -99,6 +105,7 @@ export class Guide {
       this.cum.push(this.cum[i - 1]! + Math.sqrt(dx * dx + dy * dy));
     }
     this.total = this.cum[this.cum.length - 1]!;
+    for (let i = 0; i < this.xs.length; i++) this.turns.push(this.turnAngle(i));
   }
 
   get segments(): number {
@@ -159,6 +166,10 @@ export class Guide {
 
   /** Turn angle (radians, 0..π) at vertex `i` (between segments i-1 and i). */
   turnAt(i: number): number {
+    return this.turns[i] ?? 0;
+  }
+
+  private turnAngle(i: number): number {
     if (i <= 0 || i >= this.xs.length - 1) return 0;
     const a = datan2(this.ys[i]! - this.ys[i - 1]!, this.xs[i]! - this.xs[i - 1]!);
     const b = datan2(this.ys[i + 1]! - this.ys[i]!, this.xs[i + 1]! - this.xs[i]!);
@@ -211,6 +222,17 @@ export function controlInput(
   hint: number,
   mode: Mode,
 ): [number, number] {
+  return control(sim, m, guide, hint, mode, null);
+}
+
+function control(
+  sim: RaceSim,
+  m: MarbleState,
+  guide: Guide,
+  hint: number,
+  mode: Mode,
+  seg: { seg: number } | null,
+): [number, number] {
   if (m.status !== "alive" || m.inputLocked) return [0, 0];
   if (mode.kind === "raw") {
     const ang = (mode.dir * 2 * PI) / RAW;
@@ -222,6 +244,7 @@ export function controlInput(
   let desY = m.carrierVy;
   if (mode.speed > 0) {
     const pr = guide.project(m.x, m.y, hint);
+    if (seg) seg.seg = pr.seg;
     const v = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
     let look = Math.min(1.4, Math.max(0.5, 0.45 + 0.1 * v));
     // Do not cut a sharp corner of the guide: aim at the vertex until the marble is close to it.
@@ -366,6 +389,8 @@ export function* searchSteps(
   let k = 0;
   let widen = 0;
   const tries = new Map<number, number>();
+  /** Best progress of each kept layer, to notice a stalled frontier. */
+  const frontier: number[] = [0];
 
   for (;;) {
     const beam = layers[k]!;
@@ -383,10 +408,10 @@ export function* searchSteps(
         const inputs: number[] = [];
         let dead = false;
         let goal = -1;
-        let hint = node.hint;
+        const hold = { seg: node.hint };
         for (let t = 0; t < chunk; t++) {
           const m = p.marble;
-          const q = controlInput(sim, m, guide, hint, mode);
+          const q = control(sim, m, guide, hold.seg, mode, hold);
           inputs.push(q[0], q[1]);
           const ev = sim.step([dequantize(q[0], q[1])]);
           spent++;
@@ -395,8 +420,8 @@ export function* searchSteps(
             else if (e.t === "goal") goal = e.tick;
           }
           if (dead || goal >= 0) break;
-          if (m.status === "alive") hint = guide.project(m.x, m.y, hint).seg;
         }
+        const hint = hold.seg;
         if (dead) continue;
         if (goal >= 0) {
           const flat = inputsOf(node);
@@ -406,7 +431,7 @@ export function* searchSteps(
         }
         const m = p.marble;
         const pr = guide.project(m.x, m.y, hint);
-        let score = pr.s - 0.05 * Math.abs(pr.lat);
+        let score = pr.s - LATERAL * Math.abs(pr.lat);
         if (doomed(sim, m)) score -= DOOM_PENALTY;
         const sp = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
         const band = sp < 1 ? 0 : sp < 3.5 ? 1 : sp < 6 ? 2 : 3;
@@ -453,8 +478,15 @@ export function* searchSteps(
       }
     }
 
-    if (kept.length === 0 || kept.every((c) => c.score < -DOOM_PENALTY / 2 && !c.grounded)) {
-      // Dead end: back up a few decisions and retry wider.
+    let top = -Infinity;
+    for (const c of kept) if (c.score > -DOOM_PENALTY / 2 && c.s > top) top = c.s;
+    const stalled = k >= STALL_LAYERS && top - frontier[k - STALL_LAYERS + 1]! < 0.5;
+    if (
+      stalled ||
+      kept.length === 0 ||
+      kept.every((c) => c.score < -DOOM_PENALTY / 2 && !c.grounded)
+    ) {
+      // Dead end or a frontier that stopped moving: back up and retry wider.
       backtracks++;
       if (backtracks > maxBacktracks)
         return {
@@ -467,10 +499,11 @@ export function* searchSteps(
         };
       const n = (tries.get(k) ?? 0) + 1;
       tries.set(k, n);
-      const back = Math.min(k, 3 + 5 * n);
+      const back = Math.min(k, (stalled ? STALL_LAYERS : 3) + 5 * n);
       k -= back;
       layers.length = k + 1;
       pools.length = k + 1;
+      frontier.length = k + 1;
       // Re-open the ranked overflow of the layer we return to.
       const merged = [...layers[k]!, ...pools[k]!];
       layers[k] = merged.slice(0, 3 * width);
@@ -482,6 +515,7 @@ export function* searchSteps(
     k++;
     layers[k] = kept;
     pools[k] = pool;
+    frontier[k] = Math.max(top, frontier[k - 1]!);
     // Drop states far behind the frontier; they can be rebuilt from their parents if needed.
     if (k > 40) for (const old of pools[k - 40]!) old.state = null;
     if (widen > 0) widen--;

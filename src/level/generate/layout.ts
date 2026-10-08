@@ -27,13 +27,17 @@ export interface CornerStyle {
   ice: boolean;
 }
 
-type Route = "both" | "risky" | "safe";
+export type Route = "both" | "risky" | "safe";
+export type GuidePoint = [x: number, y: number];
 
 export class Layout {
   readonly g = new CourseGrid(SIZE, SIZE);
   /** Waypoints taking every risky line; `safe` takes every safe line (L18). */
   readonly risky: Waypoint[] = [];
   readonly safe: Waypoint[] = [];
+  /** The solver's guide polylines (world units): waypoint centres plus fractional points. */
+  readonly riskyGuide: GuidePoint[] = [];
+  readonly safeGuide: GuidePoint[] = [];
   readonly entities: EntitySource[] = [];
   readonly checkpoints: CheckpointSource[] = [];
   d: Dir = S;
@@ -85,7 +89,12 @@ export class Layout {
   }
 
   get hard(): boolean {
-    return this.difficulty === "hard" || this.difficulty === "expert";
+    return this.difficulty !== "easy" && this.difficulty !== "medium";
+  }
+
+  /** Insane and Nightmare (DECISIONS L26). */
+  get extreme(): boolean {
+    return this.difficulty === "insane" || this.difficulty === "nightmare";
   }
 
   cell(u: number, v: number): Cell {
@@ -94,12 +103,12 @@ export class Layout {
     return [this.ox + l[0] * u + f[0] * v, this.oy + l[1] * u + f[1] * v];
   }
 
-  private vec(s: number): [number, number] {
+  protected vec(s: number): [number, number] {
     const f = DV[this.d]!;
     return [f[0] * s, f[1] * s];
   }
 
-  private rect(u0: number, v0: number, u1: number, v1: number): [number, number, number, number] {
+  protected rect(u0: number, v0: number, u1: number, v1: number): [number, number, number, number] {
     const a = this.cell(u0, v0);
     const b = this.cell(u1, v1);
     return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
@@ -138,6 +147,8 @@ export class Layout {
       pending: this.pending,
       risky: this.risky.length,
       safe: this.safe.length,
+      riskyGuide: this.riskyGuide.length,
+      safeGuide: this.safeGuide.length,
       entities: this.entities.length,
       checkpoints: this.checkpoints.length,
     };
@@ -168,21 +179,23 @@ export class Layout {
     });
     this.risky.length = keep.risky;
     this.safe.length = keep.safe;
+    this.riskyGuide.length = keep.riskyGuide;
+    this.safeGuide.length = keep.safeGuide;
     this.entities.length = keep.entities;
     this.checkpoints.length = keep.checkpoints;
     return false;
   }
 
-  private fail(why: string): void {
+  protected fail(why: string): void {
     this.bad ??= why;
   }
 
   /** Pieces may touch their two predecessors (a fork's branches touch its hall and merge). */
-  private related(o: number): boolean {
+  protected related(o: number): boolean {
     return o === this.piece || o === this.piece - 1 || o === this.piece - 2;
   }
 
-  private put(x: number, y: number, h: number): void {
+  protected put(x: number, y: number, h: number): void {
     if (x < 1 || y < 1 || x > SIZE - 2 || y > SIZE - 2) return this.fail("bounds");
     if (h < 0) return this.fail("height");
     const g = this.g;
@@ -206,7 +219,14 @@ export class Layout {
   }
 
   /** A ramp across u0..u1 descending along the heading from `hTop`; returns the height after it. */
-  private rampRect(u0: number, u1: number, v0: number, rows: number, hTop: number, steep: boolean) {
+  protected rampRect(
+    u0: number,
+    u1: number,
+    v0: number,
+    rows: number,
+    hTop: number,
+    steep: boolean,
+  ) {
     if (!this.canDrop) this.fail("level");
     const step = steep ? 2 : 1;
     const ch = steep ? STEEP_TO[this.d]! : SLOPE_TO[this.d]!;
@@ -239,7 +259,7 @@ export class Layout {
   }
 
   /** Both sides of the lane rows v0..v1 without rails. */
-  private railless(v0: number, v1: number): void {
+  protected railless(v0: number, v1: number): void {
     this.open(this.u, v0, this.u, v1, "-");
     this.open(this.u1, v0, this.u1, v1, "+");
   }
@@ -250,6 +270,20 @@ export class Layout {
     if (timed) p.timed = true;
     if (route !== "safe" && !this.pending) this.risky.push(p);
     if (route !== "risky") this.safe.push({ ...p });
+    this.guideAt(at[0] + 0.5, at[1] + 0.5, route);
+  }
+
+  /** A guide-only point in world units. */
+  guideAt(x: number, y: number, route: Route = "both"): void {
+    if (route !== "safe" && !this.pending) this.riskyGuide.push([x, y]);
+    if (route !== "risky") this.safeGuide.push([x, y]);
+  }
+
+  /** A guide-only point at fractional local coordinates (cell centres are integers). */
+  guide(u: number, v: number, route: Route = "both"): void {
+    const f = DV[this.d]!;
+    const l = DV[turnDir(this.d, 1)]!;
+    this.guideAt(this.ox + l[0] * u + f[0] * v + 0.5, this.oy + l[1] * u + f[1] * v + 0.5, route);
   }
 
   wp(u: number, v: number, speed: number, radius?: number, route: Route = "both"): void {
@@ -517,7 +551,7 @@ export class Layout {
    * Down column `a` past acid in rows v0+1..2, across in clean rows v0+3..4, down `b` past rows
    * 5..6 into clean row 7 (needs 8 rows), so no leg cuts diagonally past a strip.
    */
-  private weave(a: number, b: number, v0: number, route: Route): void {
+  protected weave(a: number, b: number, v0: number, route: Route): void {
     this.wp(a, v0 + 1, 0.5, undefined, route);
     this.wp(a, v0 + 3, 0.45, 0.5, route);
     this.wp(b, v0 + 4, 0.45, 0.5, route);
@@ -596,7 +630,7 @@ export class Layout {
   }
 
   /** A two-cell alcove beside a straight; returns its outer and inner cells and the far lane column. */
-  private alcove(): { outer: number; inner: number; far: number; v0: number } {
+  protected alcove(): { outer: number; inner: number; far: number; v0: number } {
     this.setWidth(Math.max(this.baseW, 3));
     const v0 = this.v;
     this.flat(6);
@@ -642,7 +676,7 @@ export class Layout {
   }
 
   /** Landing row (local v) of a catapult launch from pad row `padV` that falls `drop` half-units. */
-  private landingRow(padV: number, vy: number, vz: number, drop: number): number {
+  protected landingRow(padV: number, vy: number, vz: number, drop: number): number {
     const fall = drop / 2;
     const t = (vz + Math.sqrt(vz * vz + 2 * GRAVITY * fall)) / GRAVITY;
     return Math.floor(padV + 0.5 + vy * t);
