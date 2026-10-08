@@ -25,7 +25,7 @@ export const METRIC_RANGES: Record<
   Difficulty,
   Partial<Record<"fragility" | "dirChanges" | "offAxis" | "minWidth" | "railless", Range>>
 > = {
-  easy: { fragility: [0, 40], dirChanges: [0, 1.5], minWidth: [1, 9] },
+  easy: { fragility: [0, 40], dirChanges: [0, 2], minWidth: [1, 9] },
   medium: { fragility: [0, 60], dirChanges: [0, 2.2], minWidth: [0.5, 9] },
   hard: { fragility: [0, 100], dirChanges: [2, 6], offAxis: [25, 80], minWidth: [0, 2] },
   expert: { fragility: [10, 100], dirChanges: [2, 6], offAxis: [25, 80], minWidth: [0, 1.5] },

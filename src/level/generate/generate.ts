@@ -253,7 +253,7 @@ function planCourse(rng: Rng, difficulty: Difficulty, tier: Tier, theme: ThemeId
 
   const tryFork = (): boolean => {
     if (chain >= tier.maxChain || L.entities.length > 56) return false;
-    if (rng.next() < tier.shortcutShare) {
+    if (rng.next() < tier.shortcutShare && (uses.get("shortcut") ?? 0) < setCap) {
       const s = side();
       if (
         L.attempt(() => L.shortcut(s)) ||

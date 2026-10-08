@@ -116,7 +116,7 @@ const RATES: Partial<
   easy: { forked: 0.15, forks: 0.15, switchback: 0.8, turns: 2.5, risky: 0.15, kinds: 5 },
   medium: { forked: 0.65, forks: 0.65, switchback: 0.9, turns: 3, risky: 0.65, kinds: 6.5 },
   hard: { forked: 0.95, forks: 1.2, switchback: 0.95, turns: 4, risky: 0.9, kinds: 8 },
-  expert: { forked: 0.95, forks: 1.4, switchback: 0.95, turns: 4.5, risky: 0.9, kinds: 9 },
+  expert: { forked: 0.95, forks: 1.4, switchback: 0.95, turns: 4.5, risky: 0.6, kinds: 9 },
 };
 
 for (const [difficulty, n] of Object.entries(SEEDS) as [Difficulty, number][]) {

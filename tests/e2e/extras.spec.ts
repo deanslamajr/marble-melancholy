@@ -32,6 +32,8 @@ test("Generate Course: difficulty, regenerate and save to Custom Races", async (
   await page.getByTestId("gen-hard").click();
   await expect.poll(() => page.evaluate(() => location.hash)).toBe("#/generate/hard/1234");
   await expect(status).toHaveAttribute("data-status", "ready", { timeout: 20_000 });
+  await expect(page.getByTestId("gen-metrics")).toContainText("FRAGILITY");
+  await expect(page.getByTestId("gen-nightmare")).toBeVisible();
   const name = (await status.locator(".gen-name").innerText()).trim();
   await page.getByTestId("gen-save").click();
   await expect(page.getByText(/saved ".*" to Custom Races/)).toBeVisible();
