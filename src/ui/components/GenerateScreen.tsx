@@ -221,7 +221,7 @@ export function GenerateScreen() {
       </label>
       <div class="gen-card" data-testid="gen-status" data-status={status.kind}>
         {status.kind === "busy" && (
-          <PixelText size="s" tone="dim" data-testid="gen-progress">
+          <PixelText size="s" tone="dim" testid="gen-progress">
             {busy?.phase === "solve"
               ? `solving ${Math.round(busy.progress * 100)}%`
               : "generating and solving"}
@@ -247,7 +247,7 @@ export function GenerateScreen() {
               {hazards.length > 0 ? hazards.join(" · ").toUpperCase() : "NO HAZARDS"}
             </PixelText>
             {m && (
-              <PixelText size="s" tone="dim" data-testid="gen-metrics">
+              <PixelText size="s" tone="dim" testid="gen-metrics">
                 FRAGILITY {Math.round(m.fragility)}% · {m.dirChanges.toFixed(1)} STEERS/S ·{" "}
                 {Math.round(m.offAxis)}% DIAGONAL · MIN WIDTH {m.minWidth.toFixed(1)} ·{" "}
                 {Math.round(m.railless)}% RAIL-LESS · {Math.round(m.overVoid)}% OVER VOID ·{" "}
