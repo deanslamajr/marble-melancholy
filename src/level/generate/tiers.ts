@@ -197,7 +197,11 @@ export interface Tier {
   /** Tier floor: courses less fragile than this (%) are rejected (L29). */
   minFragility: number;
   /** par = ceil(solution × factor + slack); limit = min(99, max(par + 5, ceil(par × limit))). */
-  par: { factor: number; slack: number; limit: number };
+  /**
+   * `steer` (L29) adds a reaction allowance in seconds per stick direction change: a modelled
+   * slowed human run, so extreme-tier par is not the superhuman solver line.
+   */
+  par: { factor: number; slack: number; limit: number; steer?: number };
 }
 
 /** Neutral v3 settings for the tiers that keep the v2 behaviour. */
@@ -368,9 +372,9 @@ export const TIERS: Record<Difficulty, Tier> = {
     solver: "search",
     beam: 8,
     budget: 900_000,
-    minRobust: 50,
+    minRobust: 37.5,
     minFragility: 0,
-    par: { factor: 1.12, slack: 1.5, limit: 1.4 },
+    par: { factor: 1.1, slack: 1.5, limit: 1.45, steer: 0.04 },
   },
   expert: {
     segments: [11, 12],
@@ -443,7 +447,7 @@ export const TIERS: Record<Difficulty, Tier> = {
     budget: 1_200_000,
     minRobust: 25,
     minFragility: 0,
-    par: { factor: 1.12, slack: 1.5, limit: 1.45 },
+    par: { factor: 1.1, slack: 1.5, limit: 1.5, steer: 0.06 },
   },
   insane: {
     segments: [11, 13],
@@ -508,10 +512,10 @@ export const TIERS: Record<Difficulty, Tier> = {
     budget: 1_600_000,
     minRobust: 25,
     minFragility: 0,
-    par: { factor: 1.3, slack: 3, limit: 2 },
+    par: { factor: 1.1, slack: 2, limit: 1.9, steer: 0.1 },
   },
   nightmare: {
-    segments: [12, 14],
+    segments: [12, 13],
     widths: [2, 2],
     startHeight: 35,
     maxHazards: 12,
@@ -548,7 +552,7 @@ export const TIERS: Record<Difficulty, Tier> = {
       pipeTarget: 1,
     },
     narrowW: 1,
-    rope: [8, 12],
+    rope: [8, 11],
     iceRope: 0.5,
     camberW: 1,
     diagSlopes: [1, 0.5, 2],
@@ -558,7 +562,7 @@ export const TIERS: Record<Difficulty, Tier> = {
     waveRopeAmp: 0.3,
     chainSize: 1,
     hooverRopePull: 18,
-    cornerW: 1,
+    cornerW: 2,
     bareLanes: 0.6,
     inverted: 0.5,
     checkpointEvery: 1,
@@ -567,7 +571,7 @@ export const TIERS: Record<Difficulty, Tier> = {
     budget: 2_000_000,
     minRobust: 12.5,
     minFragility: 0,
-    par: { factor: 1.35, slack: 4, limit: 2.2 },
+    par: { factor: 1.1, slack: 2, limit: 2, steer: 0.12 },
   },
 };
 

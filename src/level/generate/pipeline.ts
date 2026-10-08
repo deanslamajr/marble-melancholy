@@ -27,17 +27,20 @@ export const MAX_SEARCH_ATTEMPTS = 5;
 export const MAX_SOLUTION_SECONDS = 65;
 
 /**
- * Stated generation budget per course, average over seeds, in milliseconds (Node on a laptop;
- * includes retries, solving, metrics and stamping). Browsers are within about 1.5× of this.
+ * Stated generation budget per course, average CPU time over seeds, in milliseconds (Node on a
+ * laptop; includes retries, solving, metrics and stamping). Browsers are within about 1.5× of
+ * this. A single seed may take up to WORST_BUDGET_FACTOR× its tier budget when several layouts
+ * exhaust their search budget before one solves (L25).
  */
 export const GEN_BUDGET_MS: Record<Difficulty, number> = {
-  easy: 300,
-  medium: 400,
-  hard: 1500,
-  expert: 2000,
-  insane: 2500,
-  nightmare: 3000,
+  easy: 500,
+  medium: 600,
+  hard: 3000,
+  expert: 3000,
+  insane: 5000,
+  nightmare: 5000,
 };
+export const WORST_BUDGET_FACTOR = 4;
 
 export type GeneratePhase = "layout" | "solve" | "measure" | "stamp";
 
@@ -75,15 +78,21 @@ export type GenerateLevelResult =
     }
   | { ok: false; error: string; attempts: number; failures: string[] };
 
-/** par = ceil(solution × factor + slack); limit = max(par + 5, ceil(par × limit)) capped at 99 (L20, L29). */
+/**
+ * par = ceil((solution + steer × steering changes) × factor + slack);
+ * limit = max(par + 5, ceil(par × limit)) capped at 99 (L20, L29).
+ */
 export function timingFor(
   difficulty: Difficulty,
   ticks: number,
+  steers = 0,
 ): { timeLimit: number; par: number; timeBonus: number } | null {
   const sec = ticks / TICK_HZ;
   if (sec > MAX_SOLUTION_SECONDS) return null;
   const t = TIERS[difficulty].par;
-  const par = Math.ceil(sec * t.factor + t.slack);
+  let par = Math.ceil((sec + (t.steer ?? 0) * steers) * t.factor + t.slack);
+  // The steering allowance never pushes par past 80 % of the 99 s cap.
+  if (t.steer) par = Math.max(Math.ceil(sec * t.factor + t.slack), Math.min(par, 79));
   const timeLimit = Math.min(99, Math.max(par + 5, Math.ceil(par * t.limit)));
   if (par >= timeLimit || par > timeLimit * 0.8) return null;
   return { timeLimit, par, timeBonus: 5 };
@@ -203,14 +212,22 @@ export async function generateLevel(opts: GenerateLevelOptions): Promise<Generat
         solution = waypoints.solution!;
         solver = "autopilot";
       }
-      const timing = timingFor(opts.difficulty, ticks);
-      if (!timing) {
+      if (ticks > MAX_SOLUTION_SECONDS * TICK_HZ) {
         failures.push(`${label}solution too long (${(ticks / TICK_HZ).toFixed(1)} s)`);
         continue;
       }
 
       await report(attempt, "measure", 0);
       const metrics = measureCourse(level, runs, gen.layoutSeed);
+      const timing = timingFor(
+        opts.difficulty,
+        ticks,
+        Math.round(metrics.dirChanges * metrics.seconds),
+      );
+      if (!timing) {
+        failures.push(`${label}no par fits the limit (${(ticks / TICK_HZ).toFixed(1)} s)`);
+        continue;
+      }
       if (metrics.robustness < tier.minRobust) {
         failures.push(`${label}unfair: worst window ${metrics.robustness}% under small noise`);
         continue;
