@@ -169,6 +169,20 @@ test("touches where the letterbox bars used to be steer the marble", async ({ pa
   expect(errors).toEqual([]);
 });
 
+// A short, still touch is a steering correction, not a pause (I14).
+test("quick taps anywhere on the stage never pause the race", async ({ page }) => {
+  await openGame(page);
+  await startRacing(page);
+  const vp = page.viewportSize()!;
+  for (const fx of [0.9, 0.7, 0.5, 0.2]) {
+    const p = { x: vp.width * fx, y: vp.height * 0.6 };
+    await touch(page, "touchstart", p);
+    await touch(page, "touchend", p);
+  }
+  await simSecond(page);
+  expect(await state(page)).toBe("racing");
+});
+
 test("the pause button stays clear of both players' timers", async ({ page }, info) => {
   await openGame(page);
   await page.evaluate(() => window.__mm!.startCourse(2));

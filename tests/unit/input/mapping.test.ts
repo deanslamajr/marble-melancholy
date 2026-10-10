@@ -174,7 +174,7 @@ describe("TouchStickSource", () => {
     const t = new TouchStickSource();
     const states: boolean[] = [];
     const unsub = t.subscribe((s) => states.push(s.active));
-    t.start(1, 100, 200, 1000);
+    t.start(1, 100, 200);
     expect(t.state).toMatchObject({ active: true, originX: 100, originY: 200 });
     t.move(1, 105, 200);
     expect(t.tick()).toEqual({ x: 0, y: 0 });
@@ -190,38 +190,21 @@ describe("TouchStickSource", () => {
     expect(states).toEqual([false, true, true, true, true, false]);
   });
 
-  it("right-side tap requests pause", () => {
+  it("starts the stick anywhere, including the right-hand side", () => {
     const t = new TouchStickSource();
-    let pauses = 0;
-    t.onPauseRequest = () => pauses++;
-    t.start(2, 900, 100, 1000, 0);
-    t.end(2, 100);
-    expect(pauses).toBe(1);
-    t.start(3, 900, 100, 1000, 0);
-    t.move(3, 700, 100);
-    t.end(3, 100);
-    expect(pauses).toBe(1);
-    expect(t.state.active).toBe(false);
-  });
-
-  it("starts the stick anywhere, including the right-hand zone", () => {
-    const t = new TouchStickSource();
-    let pauses = 0;
-    t.onPauseRequest = () => pauses++;
-    t.start(1, 950, 300, 1000, 0);
+    t.start(1, 950, 300);
     expect(t.state).toMatchObject({ active: true, originX: 950, originY: 300 });
     t.move(1, 950, 360);
     expect(t.tick()).toEqual({ x: 0, y: 1 });
-    t.end(1, 1000);
-    expect(pauses).toBe(0);
-    // A second finger never takes the stick over, and a quick still tap on the left is no pause.
-    t.start(2, 100, 100, 1000, 0);
-    t.start(3, 900, 100, 1000, 0);
+    t.end(1);
+    // A second finger never takes the stick over, and lifting it leaves the stick alone.
+    t.start(2, 100, 100);
+    t.start(3, 900, 100);
     expect(t.state.originX).toBe(100);
-    t.end(3, 50);
-    expect(pauses).toBe(1);
-    t.end(2, 60);
-    expect(pauses).toBe(1);
+    t.end(3);
+    expect(t.state.active).toBe(true);
+    t.end(2);
+    expect(t.state.active).toBe(false);
   });
 
   it("scales the stick radius with the stage within limits", () => {
@@ -231,7 +214,7 @@ describe("TouchStickSource", () => {
     expect(touchRadiusFor(2560, 1440)).toBe(TOUCH_RADIUS_MAX_PX);
     const t = new TouchStickSource();
     t.radius = 40;
-    t.start(1, 100, 100, 1000);
+    t.start(1, 100, 100);
     t.radius = 90;
     t.move(1, 100, 300);
     expect(t.state).toMatchObject({ radius: 40, knobY: 40 });
@@ -244,13 +227,13 @@ describe("TouchStickSource", () => {
 
   it("ignores touches while disabled and releases the stick on disable", () => {
     const t = new TouchStickSource();
-    t.start(1, 100, 100, 1000);
+    t.start(1, 100, 100);
     t.enabled = false;
     expect(t.state.active).toBe(false);
-    t.start(2, 100, 100, 1000);
+    t.start(2, 100, 100);
     expect(t.state.active).toBe(false);
     t.enabled = true;
-    t.start(3, 100, 100, 1000);
+    t.start(3, 100, 100);
     expect(t.state.active).toBe(true);
   });
 });
@@ -297,5 +280,20 @@ describe("InputManager (no DOM)", () => {
     im.sample(0);
     im.sample(0);
     expect(pauses).toBe(1);
+  });
+
+  it("a quick, still tap anywhere steers and never pauses (I14)", () => {
+    const im = new InputManager(settings, () => []);
+    let pauses = 0;
+    im.onPauseRequest = () => pauses++;
+    for (const x of [100, 500, 900]) {
+      im.touch.start(1, x, 100);
+      expect(im.touch.state).toMatchObject({ active: true, originX: x });
+      im.sample(0);
+      im.touch.end(1);
+      im.sample(0);
+    }
+    expect(im.touch.state.active).toBe(false);
+    expect(pauses).toBe(0);
   });
 });

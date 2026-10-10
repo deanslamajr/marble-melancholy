@@ -8,10 +8,6 @@ export const TOUCH_RADIUS_MAX_PX = 90;
 export const TOUCH_RADIUS_FRACTION = 0.13;
 /** Dead zone as a fraction of the radius (8 px at the default 60 px). */
 export const TOUCH_DEADZONE = 8 / 60;
-/** A quick tap starting right of this fraction of the target width requests pause. */
-export const TOUCH_PAUSE_ZONE = 0.6;
-const TAP_MAX_MS = 350;
-const TAP_MAX_MOVE_PX = 16;
 /** Touches that start on these elements belong to the page (buttons, links), not the stick. */
 const UI_SELECTOR = "button, a, input, select, textarea, label, [data-touch-ui]";
 
@@ -35,14 +31,6 @@ export interface TouchStickState {
 
 type Listener = (s: TouchStickState) => void;
 
-interface Tap {
-  x: number;
-  y: number;
-  t: number;
-  moved: boolean;
-  pauseZone: boolean;
-}
-
 const IDLE: TouchStickState = Object.freeze({
   active: false,
   originX: 0,
@@ -53,19 +41,17 @@ const IDLE: TouchStickState = Object.freeze({
 });
 
 /**
- * Floating virtual stick (P1 only, §7.6). The first touch anywhere on the target drives it (I13);
- * a quick, still tap in the right-hand zone requests pause. The start/move/end methods take
+ * Floating virtual stick (P1 only, §7.6). The first touch anywhere on the target drives it (I13).
+ * Touches never pause; the visible pause button does (I14). The start/move/end methods take
  * coordinates relative to the target element, so the state machine is testable without a DOM;
  * attach() wires touch events.
  */
 export class TouchStickSource {
-  onPauseRequest: (() => void) | null = null;
   /** Stick radius in CSS px for touches that start from now on. */
   radius = TOUCH_RADIUS_PX;
   private on = true;
   private s: TouchStickState = IDLE;
   private stickId: number | null = null;
-  private readonly taps = new Map<number, Tap>();
   private readonly listeners = new Set<Listener>();
   private el: HTMLElement | null = null;
   private readonly onTouch = (e: TouchEvent) => this.handleTouch(e);
@@ -98,19 +84,13 @@ export class TouchStickSource {
     for (const cb of this.listeners) cb(next);
   }
 
-  start(id: number, x: number, y: number, width: number, timeMs = 0): void {
-    if (!this.on) return;
-    this.taps.set(id, { x, y, t: timeMs, moved: false, pauseZone: x >= width * TOUCH_PAUSE_ZONE });
-    if (this.stickId !== null) return;
+  start(id: number, x: number, y: number): void {
+    if (!this.on || this.stickId !== null) return;
     this.stickId = id;
     this.set({ active: true, originX: x, originY: y, knobX: 0, knobY: 0, radius: this.radius });
   }
 
   move(id: number, x: number, y: number): void {
-    const tap = this.taps.get(id);
-    if (tap && (Math.abs(x - tap.x) > TAP_MAX_MOVE_PX || Math.abs(y - tap.y) > TAP_MAX_MOVE_PX)) {
-      tap.moved = true;
-    }
     if (id !== this.stickId) return;
     const r = this.s.radius;
     let dx = x - this.s.originX;
@@ -123,18 +103,13 @@ export class TouchStickSource {
     this.set({ ...this.s, knobX: dx, knobY: dy });
   }
 
-  end(id: number, timeMs = 0): void {
-    const tap = this.taps.get(id);
-    this.taps.delete(id);
-    if (id === this.stickId) {
-      this.stickId = null;
-      this.set(IDLE);
-    }
-    if (tap?.pauseZone && !tap.moved && timeMs - tap.t <= TAP_MAX_MS) this.onPauseRequest?.();
+  end(id: number): void {
+    if (id !== this.stickId) return;
+    this.stickId = null;
+    this.set(IDLE);
   }
 
   cancelAll(): void {
-    this.taps.clear();
     if (this.stickId !== null) {
       this.stickId = null;
       this.set(IDLE);
@@ -190,17 +165,13 @@ export class TouchStickSource {
       const y = t.clientY - r.top;
       switch (e.type) {
         case "touchstart":
-          this.start(t.identifier, x, y, r.width, e.timeStamp);
+          this.start(t.identifier, x, y);
           break;
         case "touchmove":
           this.move(t.identifier, x, y);
           break;
-        case "touchend":
-          this.end(t.identifier, e.timeStamp);
-          break;
         default:
-          this.taps.delete(t.identifier);
-          if (t.identifier === this.stickId) this.end(t.identifier, e.timeStamp);
+          this.end(t.identifier);
       }
     }
     if (handled && e.cancelable) e.preventDefault();

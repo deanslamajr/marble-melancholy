@@ -48,7 +48,6 @@ export class InputManager {
       new KeyboardSource(bindingsFor(1, 1, settings.p2Keys)),
     ];
     this.mouse.sensitivity = settings.mouseSensitivity;
-    this.touch.onPauseRequest = () => this.onPauseRequest?.();
   }
 
   get enableMouse(): boolean {
