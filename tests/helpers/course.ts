@@ -47,3 +47,27 @@ const solutions = courseLevels.map((l) => decodeRuns(l.solution.runs));
 /** Player 0 follows each race's embedded solution after the countdown; others stay still. */
 export const solve: Steer = (race, t, p) =>
   p === 0 && t >= COUNTDOWN_TICKS ? (solutions[race]![t - COUNTDOWN_TICKS] ?? [0, 0]) : [0, 0];
+
+/** Plays one custom race with player 0 steered by `steer`, the way the game records it. */
+export function playRace(level: CompiledLevel, steer: (tick: number) => [number, number]) {
+  const session = new GameSession("custom", 1, [level]);
+  const sim = courseRaceSim(session);
+  const rec = new RaceRecorder(1);
+  const leaveBehind = new LeaveBehindRule();
+  let tail = -1;
+  for (let t = 0; tail !== 0 && t < 120 * 120; t++) {
+    const inputs = [dequantize(...steer(t))];
+    stepRace(sim, leaveBehind, inputs);
+    rec.push(inputs);
+    const p = sim.players[0]!;
+    if ((p.marble.status === "finished" || p.eliminated) && tail < 0) tail = 30;
+    if (tail > 0) tail--;
+  }
+  return { race: rec.finish(level.stamp.contentHash), player: sim.players[0]! };
+}
+
+/** Steers player 0 along a level's embedded solution after the countdown. */
+export function solutionSteer(level: CompiledLevel): (tick: number) => [number, number] {
+  const steps = decodeRuns(level.solution.runs);
+  return (t) => (t >= COUNTDOWN_TICKS ? (steps[t - COUNTDOWN_TICKS] ?? [0, 0]) : [0, 0]);
+}

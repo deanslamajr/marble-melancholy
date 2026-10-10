@@ -3,10 +3,19 @@ import {
   decodeInputs,
   encodeInputs,
   verifyCourseRun,
+  verifyRaceTime,
   type CourseRecording,
 } from "../../src/game/courseRun";
+import { elapsedTicks } from "../../src/game/scoring";
+import { loadExtra } from "../helpers";
 import { COUNTDOWN_TICKS } from "../../src/sim/constants";
-import { courseLevels as levels, playCourse, solve } from "../helpers/course";
+import {
+  courseLevels as levels,
+  playCourse,
+  playRace,
+  solutionSteer,
+  solve,
+} from "../helpers/course";
 
 describe("course recordings (P15)", () => {
   it("round-trips quantized inputs, including runs longer than 255 ticks", () => {
@@ -59,5 +68,30 @@ describe("course recordings (P15)", () => {
     });
     const cut = { ...rec, races: [{ ...rec.races[0]!, ticks: COUNTDOWN_TICKS + 10 }] };
     expect(verifyCourseRun(levels, cut).ok).toBe(false);
+  });
+});
+
+describe("single-race times (P17)", () => {
+  const level = loadExtra("puddle-hop");
+
+  it("a finished race replays to the time the player saw", () => {
+    const { race, player } = playRace(level, solutionSteer(level));
+    expect(player.marble.status).toBe("finished");
+    const v = verifyRaceTime(level, race);
+    expect(v).toEqual({ ok: true, ticks: elapsedTicks(player, 0) });
+    expect(player.finishTick).toBeGreaterThan(0);
+  });
+
+  it("rejects runs that never get home, belong to another course or were edited", () => {
+    const idle = playRace(level, () => [0, 0]);
+    expect(verifyRaceTime(level, idle.race)).toEqual({
+      ok: false,
+      error: "the marble never got home",
+    });
+    const { race } = playRace(level, solutionSteer(level));
+    const other = loadExtra("ice-rink-blues");
+    expect(verifyRaceTime(other, race)).toMatchObject({ ok: false });
+    const cut = { ...race, ticks: race.ticks - 200 };
+    expect(verifyRaceTime(level, cut)).toMatchObject({ ok: false });
   });
 });

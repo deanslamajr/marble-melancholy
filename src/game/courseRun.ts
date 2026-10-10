@@ -7,6 +7,7 @@ import { TICK_HZ } from "../sim/constants";
 import { dequantize } from "../sim/quantize";
 import { RaceSim } from "../sim/race";
 import type { InputFrame, SimEvent, SimSnapshot } from "../sim/types";
+import { elapsedTicks } from "./scoring";
 import { GameSession } from "./session";
 
 /** Builds the sim for the session's current race, exactly as the game does. */
@@ -184,4 +185,19 @@ export function verifyCourseRun(
     session.advance();
   }
   return { ok: false, error: "unreachable" };
+}
+
+export type RaceTimeVerdict = { ok: true; ticks: number } | { ok: false; error: string };
+
+/**
+ * Replays one single-race recording (custom mode, one player) and returns the finishing time it
+ * earns (P17). The marble must reach the goal within the recording.
+ */
+export function verifyRaceTime(level: CompiledLevel, race: RaceRecording): RaceTimeVerdict {
+  const session = new GameSession("custom", 1, [level]);
+  const sim = replayRace(session, race, 0);
+  if (typeof sim === "string") return { ok: false, error: sim };
+  const p = sim.players[0]!;
+  if (p.marble.status !== "finished") return { ok: false, error: "the marble never got home" };
+  return { ok: true, ticks: elapsedTicks(p, session.currentStartTicks[0]!) };
 }

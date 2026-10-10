@@ -2,7 +2,7 @@
 // postgres:17-alpine`. The table is dropped first, so never point it at a real database.
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
-import { PgStore, type NewCampaignScore } from "../../server/store";
+import { PgStore, type NewCampaignScore, type NewRaceTime } from "../../server/store";
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -24,7 +24,7 @@ describe.skipIf(!url)("PgStore against Postgres (P15)", () => {
   });
 
   it("creates its schema, ranks entries and ignores repeats", async () => {
-    await pool.query("DROP TABLE IF EXISTS campaign_scores");
+    await pool.query("DROP TABLE IF EXISTS race_times, levels, campaign_scores");
     await store.init();
     await store.init();
     expect(await store.ping()).toBe(true);
@@ -37,5 +37,38 @@ describe.skipIf(!url)("PgStore against Postgres (P15)", () => {
     expect(top.map((r) => r.score)).toEqual([900, 700, 500, 100]);
     expect(top[0]).toMatchObject({ initials: "PGT", race: 3, players: 1 });
     expect(Number.isNaN(Date.parse(top[0]!.date))).toBe(false);
+  });
+
+  it("stores each course once and ranks race times per board", async () => {
+    const h = `sha256:${"a".repeat(64)}`;
+    const other = `sha256:${"b".repeat(64)}`;
+    const time = (ticks: number, runHash: string, contentHash = h): NewRaceTime => ({
+      contentHash,
+      initials: "PGT",
+      ticks,
+      runHash,
+      recording: { contentHash, ticks: 1, inputs: [""] },
+      build: "test",
+    });
+    expect(await store.getLevel(h)).toBeNull();
+    await store.putLevel(h, "One", '{"v":1}');
+    await store.putLevel(h, "One", '{"v":2}');
+    expect(await store.getLevel(h)).toBe('{"v":1}');
+    await store.putLevel(other, "Two", "{}");
+    expect(await store.addTime(time(900, "t1"), 10)).toEqual({ index: 0, duplicate: false });
+    expect(await store.addTime(time(700, "t2"), 10)).toEqual({ index: 0, duplicate: false });
+    expect(await store.addTime(time(800, "t3"), 10)).toEqual({ index: 1, duplicate: false });
+    expect(await store.addTime(time(800, "t3"), 10)).toEqual({ index: 1, duplicate: true });
+    expect(await store.addTime(time(500, "t4", other), 10)).toEqual({
+      index: 0,
+      duplicate: false,
+    });
+    expect((await store.topTimes(h, 10)).map((e) => e.ticks)).toEqual([700, 800, 900]);
+    const best = await store.bestTimes([h, other, `sha256:${"c".repeat(64)}`]);
+    expect(Object.fromEntries(Object.entries(best).map(([k, e]) => [k, e.ticks]))).toEqual({
+      [h]: 700,
+      [other]: 500,
+    });
+    await expect(store.addTime(time(1, "t5", `sha256:${"c".repeat(64)}`), 10)).rejects.toThrow();
   });
 });

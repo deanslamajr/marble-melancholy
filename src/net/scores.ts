@@ -2,8 +2,7 @@
 // unreachable, so the game keeps its local table offline and in development.
 import type { CourseRecording } from "../game/courseRun";
 import type { HighScoreEntry } from "../storage/highscores";
-
-const TIMEOUT_MS = 8000;
+import { call } from "./api";
 
 export interface CampaignSubmitResult {
   score: number;
@@ -11,25 +10,6 @@ export interface CampaignSubmitResult {
   /** 0-based place of the new entry in `table`, or -1. */
   index: number;
   table: HighScoreEntry[];
-}
-
-async function call(path: string, init?: RequestInit): Promise<unknown> {
-  if (typeof fetch !== "function" || typeof document === "undefined") return null;
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(new URL(`api/${path}`, document.baseURI), {
-      ...init,
-      signal: ctl.signal,
-      headers: { "content-type": "application/json" },
-    });
-    if (!(res.headers.get("content-type") ?? "").includes("application/json")) return null;
-    return await res.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function isTable(v: unknown): v is HighScoreEntry[] {

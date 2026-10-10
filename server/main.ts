@@ -28,6 +28,7 @@ let course: Promise<CompiledLevel[]> | null = null;
 const handler = createHandler({
   store,
   course: () => (course ??= LevelLoader.loadCourse()),
+  loadLevel: (json) => LevelLoader.load(json),
   log,
 });
 const port = Number(env.PORT ?? 8080);
