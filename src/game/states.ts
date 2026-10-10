@@ -48,6 +48,8 @@ export function canTransition(from: GameState, to: GameState): boolean {
 export const PHASE_SECONDS = {
   raceIntro: 2.0,
   raceComplete: 3.0,
+  /** A single race's card with its shared board (P17). */
+  raceCompleteBoard: 8.0,
   raceCompleteDelay1P: 1.5,
   timeoutToGameOver: 2.0,
   courseComplete: 4.0,

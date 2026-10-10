@@ -7,8 +7,10 @@ import type { GenerateProgress } from "../../level/generate/pipeline";
 import { SURFACE, type CompiledLevel } from "../../level/types";
 import { LevelLoader } from "../../levels/loader";
 import { TICK_HZ } from "../../sim/constants";
+import { bestTicksFor, recordBestTime } from "../../storage/bestTimes";
 import { putCustomLevel } from "../../storage/levelsStore";
 import { useController } from "../context";
+import { formatTop, useBestTimes } from "../useBestTimes";
 import { PixelText } from "./PixelText";
 
 type Ready = {
@@ -99,7 +101,12 @@ function playGenerated(
   version?: number,
 ): void {
   navigate({ name: "playGenerated", difficulty: d, seed: s, version }, { replace: true });
-  c.startCustom(level, () => show(d, s, version), { label: `GENERATED · ${d.toUpperCase()}` });
+  c.startCustom(level, () => show(d, s, version), {
+    label: `GENERATED · ${d.toUpperCase()}`,
+    recordBest: recordBestTime,
+    bestTicks: bestTicksFor(level.id),
+    board: true,
+  });
 }
 
 export function GenerateScreen() {
@@ -187,6 +194,8 @@ export function GenerateScreen() {
   const m = ready?.metrics;
   const busy = status.kind === "busy" ? status.progress : undefined;
   const hazards = lvl ? courseFeatures(lvl) : [];
+  const top = useBestTimes(lvl ? [lvl.stamp.contentHash] : []);
+  const mine = lvl ? bestTicksFor(lvl.id) : null;
 
   return (
     <div class="overlay panel-screen generate-screen" data-testid="generate-screen">
@@ -249,6 +258,10 @@ export function GenerateScreen() {
             <PixelText size="s" tone="dim">
               PAR {lvl.timing.par}s · TIME {lvl.timing.timeLimit}s · SOLVED IN{" "}
               {(lvl.solution.ticks / TICK_HZ).toFixed(2)}s
+            </PixelText>
+            <PixelText size="s" tone="dim" testid="gen-board">
+              {top ? `TOP ${formatTop(top[lvl.stamp.contentHash])} · ` : ""}YOUR BEST{" "}
+              {mine === null ? "—" : `${(mine / TICK_HZ).toFixed(2)}s`}
             </PixelText>
             <PixelText size="s" tone="dim">
               {ready.turns} TURNS · {ready.forks} {ready.forks === 1 ? "FORK" : "FORKS"} ·{" "}

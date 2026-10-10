@@ -15,11 +15,14 @@ import type { InputFrame, SimEvent, SimSnapshot } from "../sim/types";
 import {
   insertScore,
   loadHighScores,
+  normalizeInitials,
   qualifies,
   saveHighScores,
   type HighScoreEntry,
 } from "../storage/highscores";
+import { fetchBoard, qualifiesTime, submitTime, type TimeEntry } from "../net/boards";
 import { fetchCampaignTable, submitCampaignScore } from "../net/scores";
+import { saveInitials } from "../storage/initials";
 import { recordBestTicks } from "../storage/levelsStore";
 import { loadSettings, saveSettings, type Settings } from "../storage/settings";
 import { AttractReel, type AttractRun } from "./attract";
@@ -34,6 +37,7 @@ import {
   replayRace,
   stepRace,
   type CourseRecording,
+  type RaceRecording,
 } from "./courseRun";
 import { GameSession } from "./session";
 import { canTransition, PHASE_SECONDS, simRuns, type GameState, type PauseReason } from "./states";
@@ -89,6 +93,19 @@ export interface CustomRaceOptions {
   recordBest?: (id: string, ticks: number) => Promise<boolean> | boolean;
   /** Best time before this race, shown on the result card. */
   bestTicks?: number | null;
+  /** Keep a shared best-time board for this course (P17). */
+  board?: boolean;
+}
+
+/** The shared best-time board of the single race being played (P17). */
+export interface BoardView {
+  /** "loading" until the server answers; "offline" when it cannot be reached. */
+  status: "loading" | "ready" | "offline";
+  table: TimeEntry[];
+  /** Row of this run once stored, or -1. */
+  highlight: number;
+  /** A finish fast enough for the board, waiting for initials. */
+  entry: null | { ticks: number; sending: boolean; error: string | null };
 }
 
 export interface FinalCard {
@@ -119,6 +136,12 @@ export class GameController {
    */
   readonly scoresSource = signal<"global" | "local" | "loading">("loading");
   private globalTable: HighScoreEntry[] | null = null;
+  readonly board = signal<BoardView | null>(null);
+  /** The finished single race, kept for its board submission. */
+  private lastRace: RaceRecording | null = null;
+  /** A board-worthy finishing time waiting for the board to load. */
+  private pendingTicks: number | null = null;
+  private boardEpoch = 0;
   /** Course-end submissions still waiting for the server, and the newest accepted rank. */
   private submitsPending = 0;
   private submitSeq = 0;
@@ -441,6 +464,7 @@ export class GameController {
     this.session = new GameSession("custom", 1, [level]);
     this.customOnExit = onExit ?? null;
     this.customOpts = opts;
+    this.lastRecording = null;
     this.input.setPlayers(1);
     this.beginRaceIntro();
   }
@@ -450,7 +474,9 @@ export class GameController {
     const level = session.level;
     this.raceEpoch++;
     this.sim = courseRaceSim(session);
-    this.recorder = session.mode === "course" ? new RaceRecorder(session.players) : null;
+    this.recorder = new RaceRecorder(session.players);
+    if (session.mode === "custom" && this.customOpts.board) this.loadBoard(level);
+    else this.clearBoard();
     this.timeOutFlags = session.scores.map(() => false);
     this.lowTimeSecond = session.scores.map(() => -1);
     this.completeAt = -1;
@@ -524,6 +550,7 @@ export class GameController {
   }
 
   private leaveCustom(): void {
+    this.clearBoard();
     this.sim = null;
     this.session = null;
     this.hud.value = null;
@@ -538,9 +565,83 @@ export class GameController {
     if (simRuns(this.state.value)) this.input.requestPointerLock();
   }
 
+  // ---------- single-race boards (P17) ----------
+
+  private clearBoard(): void {
+    this.boardEpoch++;
+    this.board.value = null;
+    this.lastRace = null;
+    this.pendingTicks = null;
+  }
+
+  private loadBoard(level: CompiledLevel): void {
+    this.clearBoard();
+    const epoch = this.boardEpoch;
+    this.board.value = { status: "loading", table: [], highlight: -1, entry: null };
+    void fetchBoard(level.stamp.contentHash).then((table) => {
+      if (epoch !== this.boardEpoch) return;
+      const b = this.board.value!;
+      this.board.value = table ? { ...b, status: "ready", table } : { ...b, status: "offline" };
+      this.offerEntry();
+    });
+  }
+
+  /** Asks for initials once both the finishing time and the loaded board are known. */
+  private offerEntry(): void {
+    const b = this.board.value;
+    const ticks = this.pendingTicks;
+    if (!b || b.status === "loading" || ticks === null) return;
+    this.pendingTicks = null;
+    if (b.status !== "ready" || !qualifiesTime(b.table, ticks)) return;
+    this.board.value = { ...b, entry: { ticks, sending: false, error: null } };
+  }
+
+  /** A single race with a loaded board stays on its result card longer. */
+  private completeSeconds(): number {
+    const custom = this.session?.mode === "custom";
+    return custom && this.board.value?.status === "ready"
+      ? PHASE_SECONDS.raceCompleteBoard
+      : PHASE_SECONDS.raceComplete;
+  }
+
+  /** Sends the finished race to its board; the server replays it and returns the board. */
+  submitBoardInitials(initials: string): void {
+    const b = this.board.value;
+    const race = this.lastRace;
+    const level = this.session?.level;
+    if (!b?.entry || b.entry.sending || !race || !level) return;
+    const name = normalizeInitials(initials);
+    saveInitials(name);
+    const epoch = this.boardEpoch;
+    this.board.value = { ...b, entry: { ...b.entry, sending: true, error: null } };
+    void submitTime(level, name, race, `${APP_VERSION} ${BUILD_SHA}`).then((r) => {
+      if (epoch !== this.boardEpoch) return;
+      const cur = this.board.value!;
+      if (!r || "error" in r) {
+        const error = r ? r.error : "the board is offline";
+        this.board.value = { ...cur, entry: { ...cur.entry!, sending: false, error } };
+        return;
+      }
+      this.board.value = { status: "ready", table: r.table, highlight: r.index, entry: null };
+      this.phaseTime = 0;
+    });
+  }
+
+  /** Leaves this finish off the board. */
+  skipBoardEntry(): void {
+    const b = this.board.value;
+    if (b?.entry && !b.entry.sending) this.board.value = { ...b, entry: null };
+  }
+
+  /** CONTINUE on a single race's result card. */
+  continueRace(): void {
+    if (this.state.value === "raceComplete" && !this.board.value?.entry) this.afterRaceComplete();
+  }
+
   submitInitials(initials: string): void {
     const e = this.entry.value;
     if (!e) return;
+    saveInitials(initials);
     const res = insertScore(loadHighScores(), {
       initials,
       score: e.score,
@@ -676,7 +777,8 @@ export class GameController {
         this.frameRace(dt);
         break;
       case "raceComplete":
-        if (this.fastPhases || this.phaseTime >= PHASE_SECONDS.raceComplete)
+        if (this.board.value?.entry) this.idleRace(dt);
+        else if (this.fastPhases || this.phaseTime >= this.completeSeconds())
           this.afterRaceComplete();
         else this.idleRace(dt);
         break;
@@ -789,10 +891,11 @@ export class GameController {
     const session = this.session!;
     this.completeAt = -1;
     session.recordRace(sim);
-    if (this.recorder && this.lastRecording) {
-      this.lastRecording.races.push(this.recorder.finish(session.level.stamp.contentHash));
+    const race = this.recorder?.finish(session.level.stamp.contentHash) ?? null;
+    this.recorder = null;
+    if (race && session.mode === "course" && this.lastRecording) {
+      this.lastRecording.races.push(race);
       this.raceHashes.push(sim.hash());
-      this.recorder = null;
     }
     const anyFinished = sim.players.some((p) => p.marble.status === "finished");
     if (session.mode === "custom") {
@@ -812,6 +915,11 @@ export class GameController {
         },
       };
       this.results.value = results;
+      if (finished && opts.board && race) {
+        this.lastRace = race;
+        this.pendingTicks = ticks;
+        this.offerEntry();
+      }
       if (finished) {
         const record = opts.recordBest ?? recordBestTicks;
         if (prevBest === null || ticks < prevBest) opts.bestTicks = ticks;

@@ -237,6 +237,7 @@ async function startExtraById(c: GameController, id: string): Promise<void> {
       label: "EXTRA COURSE",
       recordBest: recordBestTime,
       bestTicks: bestTicksFor(id),
+      board: true,
     });
   } catch (e) {
     c.error.value = (e as Error).message;
@@ -250,6 +251,7 @@ async function startCustomById(c: GameController, id: string): Promise<void> {
     const level = await LevelLoader.load(rec ? rec.level : id);
     c.startCustom(level, () => navigate({ name: "custom" }, { replace: true }), {
       bestTicks: rec?.bestTicks ?? null,
+      board: true,
     });
   } catch (e) {
     c.error.value = (e as Error).message;

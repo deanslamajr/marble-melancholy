@@ -1,9 +1,16 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { formatScore } from "../../game/scoring";
+import { loadInitials } from "../../storage/initials";
 import { useController } from "../context";
 import { PixelText } from "./PixelText";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/** The last initials used on this device, or AAA (P17). */
+function startChars(): number[] {
+  const last = loadInitials() ?? "AAA";
+  return [...last].map((ch) => LETTERS.indexOf(ch));
+}
 
 function coarsePointer(): boolean {
   return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
@@ -16,14 +23,14 @@ function coarsePointer(): boolean {
 export function HighScoreEntry() {
   const c = useController();
   const e = c.entry.value;
-  const [chars, setChars] = useState<number[]>([0, 0, 0]);
+  const [chars, setChars] = useState<number[]>(startChars);
   const [pos, setPos] = useState(0);
   const field = useRef<HTMLInputElement>(null);
   const submit = (cs: number[]) => c.submitInitials(cs.map((v) => LETTERS[v]).join(""));
   // Layout effects: the reset and the key listener are live before the first paint, so a letter
   // typed the moment the screen appears is neither lost nor wiped (G17).
   useLayoutEffect(() => {
-    setChars([0, 0, 0]);
+    setChars(startChars());
     setPos(0);
     if (field.current) field.current.value = "";
   }, [e]);

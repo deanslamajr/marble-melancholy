@@ -11,11 +11,13 @@ import {
   type CustomLevelRecord,
 } from "../../storage/levelsStore";
 import { useController } from "../context";
+import { formatTop, useBestTimes } from "../useBestTimes";
 import { PixelText } from "./PixelText";
 
 export function CustomLevels() {
   const c = useController();
   const [rows, setRows] = useState<CustomLevelRecord[] | null>(null);
+  const top = useBestTimes(rows?.map((r) => r.level.stamp.contentHash) ?? []);
   const [msg, setMsg] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -40,10 +42,15 @@ export function CustomLevels() {
     try {
       const level = await LevelLoader.load(json);
       navigate({ name: "playCustom", id: level.id }, { replace: true });
-      c.startCustom(level, () => {
-        navigate({ name: "custom" }, { replace: true });
-        refresh();
-      });
+      const rec = rows?.find((r) => r.id === level.id);
+      c.startCustom(
+        level,
+        () => {
+          navigate({ name: "custom" }, { replace: true });
+          refresh();
+        },
+        { bestTicks: rec?.bestTicks ?? null, board: rec !== undefined },
+      );
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -88,6 +95,7 @@ export function CustomLevels() {
             <span class="meta">
               best {r.bestTicks === null ? "—" : `${(r.bestTicks / TICK_HZ).toFixed(2)}s`}
             </span>
+            {top && <span class="meta">top {formatTop(top[r.level.stamp.contentHash])}</span>}
             <button type="button" class="btn small" onClick={() => void play(r.level)}>
               PLAY
             </button>

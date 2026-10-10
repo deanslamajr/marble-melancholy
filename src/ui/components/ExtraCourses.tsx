@@ -3,6 +3,7 @@ import { navigate } from "../../app/router";
 import { extraIds, loadRawLevel } from "../../levels/manifest";
 import { TICK_HZ } from "../../sim/constants";
 import { loadBestTimes } from "../../storage/bestTimes";
+import { formatTop, useBestTimes } from "../useBestTimes";
 import { PixelText } from "./PixelText";
 
 export type ExtraTier = "EASY" | "MEDIUM" | "HARD";
@@ -26,22 +27,27 @@ interface Row {
   id: string;
   name: string;
   par: number;
+  /** Content hash; names the course's shared board (P17). */
+  hash: string;
 }
 
 async function loadRows(): Promise<Row[]> {
   const ids = extraIds();
   const raws = await Promise.all(ids.map((id) => loadRawLevel(id)));
   return ids.flatMap((id, i) => {
-    const raw = raws[i] as { name?: unknown; timing?: { par?: unknown } } | undefined;
+    const raw = raws[i] as
+      { name?: unknown; timing?: { par?: unknown }; stamp?: { contentHash?: unknown } } | undefined;
     if (!raw) return [];
     const par = typeof raw.timing?.par === "number" ? raw.timing.par : 0;
-    return [{ id, name: typeof raw.name === "string" ? raw.name : id, par }];
+    const hash = typeof raw.stamp?.contentHash === "string" ? raw.stamp.contentHash : "";
+    return [{ id, name: typeof raw.name === "string" ? raw.name : id, par, hash }];
   });
 }
 
 export function ExtraCourses() {
   const [list, setList] = useState<Row[] | null>(null);
   const best = useMemo(() => loadBestTimes(), []);
+  const top = useBestTimes(list?.map((r) => r.hash) ?? []);
 
   useEffect(() => {
     let alive = true;
@@ -83,6 +89,11 @@ export function ExtraCourses() {
               <span class="meta">
                 best {b === undefined ? "—" : `${(b / TICK_HZ).toFixed(2)}s`}
               </span>
+              {top && (
+                <span class="meta" data-testid="extra-top">
+                  top {formatTop(top[r.hash])}
+                </span>
+              )}
               <button
                 type="button"
                 class="btn small"
