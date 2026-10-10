@@ -6,3 +6,4 @@ coverage
 deploy/k8s/backups
 .DS_Store
 *.log
+HANDOFF*.md
