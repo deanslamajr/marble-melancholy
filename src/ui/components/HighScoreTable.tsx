@@ -22,6 +22,9 @@ export function HighScoreTable(props: { onClose: () => void; testId?: string }) 
   return (
     <div class="overlay center-col" data-testid={props.testId ?? "highscores"}>
       <PixelText size="l">HIGH SCORES</PixelText>
+      <PixelText size="s" tone="dim" testid="scores-source">
+        {c.scoresSource.value === "global" ? "ALL PLAYERS" : "THIS DEVICE"}
+      </PixelText>
       <table class="scores">
         <tbody>
           {rows.map((r, i) => (

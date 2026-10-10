@@ -24,6 +24,10 @@ export interface MmTestApi {
   courseIds(): readonly string[];
   /** Audio context state ("none" before the first gesture) and the count of music (re)starts. */
   audio(): { context: string; musicStarts: number };
+  /** Player 1 follows each course race's embedded solution (P15 tests). */
+  autoplay(on: boolean): void;
+  /** Replays the current course recording; per race, replayed vs live final state hashes. */
+  replayRecording(): { replayed: string[]; live: string[] } | null;
   /** Re-run a level's embedded solution in this browser; compare with the stamped hash. */
   verifyReplay(
     id: string,
@@ -58,6 +62,8 @@ export function installTestApi(c: GameController): void {
       c.startCustom(await LevelLoader.load(id));
     },
     courseIds: () => courseIds(),
+    autoplay: (on) => c.autoplaySolution(on),
+    replayRecording: () => c.replayRecordedRaces(),
     audio: () => c.audio.debugState,
     verifyReplay: async (id) => {
       const level = await LevelLoader.load(id);

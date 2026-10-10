@@ -114,6 +114,37 @@ export function decodeInputs(text: string, maxTicks: number): Int8Array | null {
 /** Longest race a recording may claim: the 99 s timer plus generous end-of-race delays. */
 export const MAX_RACE_TICKS = (99 + 12) * TICK_HZ;
 
+/** Replays one recorded race of the session's current race; returns the sim or an error. */
+export function replayRace(
+  session: GameSession,
+  race: RaceRecording,
+  index: number,
+): RaceSim | string {
+  const n = index + 1;
+  if (race.contentHash !== session.level.stamp.contentHash) {
+    return `race ${n} is not the current course`;
+  }
+  if (!Number.isInteger(race.ticks) || race.ticks < 1 || race.ticks > MAX_RACE_TICKS) {
+    return `race ${n} has an invalid length`;
+  }
+  if (race.inputs.length !== session.players) return "wrong player count";
+  const streams = race.inputs.map((s) => decodeInputs(s, race.ticks));
+  if (streams.some((s) => s === null || s.length !== race.ticks * 2)) {
+    return `race ${n} has malformed inputs`;
+  }
+  const sim = courseRaceSim(session);
+  const leaveBehind = new LeaveBehindRule();
+  const frames: InputFrame[] = streams.map(() => ({ ax: 0, ay: 0 }));
+  for (let t = 0; t < race.ticks; t++) {
+    for (let p = 0; p < session.players; p++) {
+      const s = streams[p]!;
+      frames[p] = dequantize(s[2 * t]!, s[2 * t + 1]!);
+    }
+    stepRace(sim, leaveBehind, frames);
+  }
+  return sim;
+}
+
 export type CourseVerdict =
   | { ok: true; scores: number[]; reached: number[]; complete: boolean }
   | { ok: false; error: string };
@@ -134,28 +165,8 @@ export function verifyCourseRun(
   }
   const session = new GameSession("course", rec.players, levels);
   for (let i = 0; i < rec.races.length; i++) {
-    const race = rec.races[i]!;
-    if (race.contentHash !== session.level.stamp.contentHash) {
-      return { ok: false, error: `race ${i + 1} is not the current course` };
-    }
-    if (!Number.isInteger(race.ticks) || race.ticks < 1 || race.ticks > MAX_RACE_TICKS) {
-      return { ok: false, error: `race ${i + 1} has an invalid length` };
-    }
-    if (race.inputs.length !== rec.players) return { ok: false, error: "wrong player count" };
-    const streams = race.inputs.map((s) => decodeInputs(s, race.ticks));
-    if (streams.some((s) => s === null || s.length !== race.ticks * 2)) {
-      return { ok: false, error: `race ${i + 1} has malformed inputs` };
-    }
-    const sim = courseRaceSim(session);
-    const leaveBehind = new LeaveBehindRule();
-    const frames: InputFrame[] = streams.map(() => ({ ax: 0, ay: 0 }));
-    for (let t = 0; t < race.ticks; t++) {
-      for (let p = 0; p < rec.players; p++) {
-        const s = streams[p]!;
-        frames[p] = dequantize(s[2 * t]!, s[2 * t + 1]!);
-      }
-      stepRace(sim, leaveBehind, frames);
-    }
+    const sim = replayRace(session, rec.races[i]!, i);
+    if (typeof sim === "string") return { ok: false, error: sim };
     const over = sim.players.every((p) => p.marble.status === "finished" || p.eliminated);
     if (!over) return { ok: false, error: `race ${i + 1} did not end` };
     session.recordRace(sim);

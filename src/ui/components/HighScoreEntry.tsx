@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useLayoutEffect, useState } from "preact/hooks";
 import { formatScore } from "../../game/scoring";
 import { useController } from "../context";
 import { PixelText } from "./PixelText";
@@ -11,11 +11,13 @@ export function HighScoreEntry() {
   const e = c.entry.value;
   const [chars, setChars] = useState<number[]>([0, 0, 0]);
   const [pos, setPos] = useState(0);
-  useEffect(() => {
+  // Layout effects: the reset and the key listener are live before the first paint, so a letter
+  // typed the moment the screen appears is neither lost nor wiped (G17).
+  useLayoutEffect(() => {
     setChars([0, 0, 0]);
     setPos(0);
   }, [e]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       const k = ev.key;
       if (k === "ArrowUp" || k === "ArrowDown") {

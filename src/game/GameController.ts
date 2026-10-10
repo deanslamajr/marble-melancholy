@@ -18,11 +18,22 @@ import {
   saveHighScores,
   type HighScoreEntry,
 } from "../storage/highscores";
+import { fetchCampaignTable, submitCampaignScore } from "../net/scores";
 import { recordBestTicks } from "../storage/levelsStore";
 import { loadSettings, saveSettings, type Settings } from "../storage/settings";
 import { AttractReel, type AttractRun } from "./attract";
 import { displaySeconds, elapsedTicks, raceBreakdown, type RaceBreakdown } from "./scoring";
-import { courseRaceSim, RaceRecorder, stepRace, type CourseRecording } from "./courseRun";
+import { decodeRuns } from "../level/solution/replay";
+import { COUNTDOWN_TICKS } from "../sim/constants";
+import { dequantize } from "../sim/quantize";
+import { APP_VERSION, BUILD_SHA } from "../version";
+import {
+  courseRaceSim,
+  RaceRecorder,
+  replayRace,
+  stepRace,
+  type CourseRecording,
+} from "./courseRun";
 import { GameSession } from "./session";
 import { canTransition, PHASE_SECONDS, simRuns, type GameState } from "./states";
 
@@ -101,6 +112,9 @@ export class GameController {
   readonly entry = signal<PendingEntry | null>(null);
   readonly highScores = signal<HighScoreEntry[]>(loadHighScores());
   readonly highlightRank = signal<number>(-1);
+  /** Where `highScores` came from: the shared server table or this device (P15). */
+  readonly scoresSource = signal<"global" | "local">("local");
+  private globalTable: HighScoreEntry[] | null = null;
   readonly settings = signal<Settings>(loadSettings());
   readonly error = signal<string | null>(null);
   readonly paused = signal(false);
@@ -120,6 +134,8 @@ export class GameController {
   private recorder: RaceRecorder | null = null;
   /** Inputs of the course run in progress or just ended, for score verification (P15). */
   lastRecording: CourseRecording | null = null;
+  /** Final sim hash of each race in `lastRecording`, for the replay test hook. */
+  private raceHashes: string[] = [];
   private sim: RaceSim | null = null;
   private prev: SimSnapshot | null = null;
   private cur: SimSnapshot | null = null;
@@ -142,6 +158,8 @@ export class GameController {
 
   /** E2E hook: per-player forced input (window.__mm.injectInput). */
   readonly injected: Array<InputFrame | null> = [null, null];
+  /** Test-only per-tick input source (?e2e=1), consulted after `injected`. */
+  testInput: ((player: number) => InputFrame | null) | null = null;
   /** E2E hook: real-time phases are skipped when true. */
   fastPhases = false;
   readonly perf = { frames: 0, frameMs: 0, worstMs: 0, ticks: 0 };
@@ -328,7 +346,23 @@ export class GameController {
   openScores(): void {
     this.highScores.value = loadHighScores();
     this.highlightRank.value = -1;
+    this.scoresSource.value = "local";
     this.go("scores");
+    void this.refreshGlobalTable().then((t) => {
+      if (t && this.state.value === "scores") this.showTable(t, -1);
+    });
+  }
+
+  private async refreshGlobalTable(): Promise<HighScoreEntry[] | null> {
+    const t = await fetchCampaignTable();
+    if (t) this.globalTable = t;
+    return t;
+  }
+
+  private showTable(table: HighScoreEntry[], rank: number): void {
+    this.highScores.value = table;
+    this.highlightRank.value = rank;
+    this.scoresSource.value = "global";
   }
 
   openCustom(): void {
@@ -356,6 +390,8 @@ export class GameController {
     this.playersSelected.value = players;
     this.session = new GameSession("course", players, this.course);
     this.lastRecording = { version: 1, players, races: [] };
+    this.raceHashes = [];
+    void this.refreshGlobalTable();
     this.input.setPlayers(players);
     this.beginRaceIntro();
   }
@@ -474,8 +510,25 @@ export class GameController {
     saveHighScores(res.table);
     this.highScores.value = res.table;
     this.highlightRank.value = res.rank;
+    this.scoresSource.value = "local";
     this.audio.playUi("highScore");
+    this.submitGlobal(initials, e.player);
     this.nextEntryOrTable();
+  }
+
+  /** Sends the run to the score server; its replayed result replaces the local table (P15). */
+  private submitGlobal(initials: string, player: number): void {
+    const rec = this.lastRecording;
+    if (!rec || rec.races.length === 0) return;
+    void submitCampaignScore(initials, player, rec, `${APP_VERSION} ${BUILD_SHA}`).then((r) => {
+      if (!r) return;
+      if ("error" in r) {
+        console.warn(`score not accepted: ${r.error}`);
+        return;
+      }
+      this.globalTable = r.table;
+      if (this.state.value === "highScoreTable") this.showTable(r.table, r.index);
+    });
   }
 
   /** Any key on the high-score table / attract returns to title. */
@@ -497,6 +550,44 @@ export class GameController {
     if (this.state.value === "countdown" && this.sim) {
       this.sim.countdown = Math.min(this.sim.countdown, 1);
     }
+  }
+
+  /** Test hook (?e2e=1): player 1 follows each race's embedded solution after the countdown. */
+  autoplaySolution(on: boolean): void {
+    if (!on) {
+      this.testInput = null;
+      return;
+    }
+    let sim: RaceSim | null = null;
+    let t = 0;
+    let steps: Array<[number, number]> = [];
+    this.testInput = (p) => {
+      if (p !== 0 || !this.sim || !this.session) return null;
+      if (this.sim !== sim) {
+        sim = this.sim;
+        t = 0;
+        steps = decodeRuns(this.session.level.solution.runs);
+      }
+      const q = t >= COUNTDOWN_TICKS ? steps[t - COUNTDOWN_TICKS] : undefined;
+      t++;
+      return q ? dequantize(q[0], q[1]) : { ax: 0, ay: 0 };
+    };
+  }
+
+  /** Test hook: replays the recorded races from scratch; returns their hashes and the live ones. */
+  replayRecordedRaces(): { replayed: string[]; live: string[] } | null {
+    const rec = this.lastRecording;
+    if (!rec) return null;
+    const session = new GameSession("course", rec.players, this.course);
+    const replayed: string[] = [];
+    for (let i = 0; i < rec.races.length; i++) {
+      const sim = replayRace(session, rec.races[i]!, i);
+      if (typeof sim === "string") return { replayed: [...replayed, sim], live: this.raceHashes };
+      replayed.push(sim.hash());
+      session.recordRace(sim);
+      if (session.hasNext()) session.advance();
+    }
+    return { replayed, live: [...this.raceHashes] };
   }
 
   setTimer(player: number, seconds: number): void {
@@ -590,7 +681,7 @@ export class GameController {
     for (let i = 0; i < steps; i++) {
       const inputs: InputFrame[] = [];
       for (let p = 0; p < sim.playerCount; p++) {
-        inputs.push(this.injected[p] ?? this.input.sample(p as 0 | 1));
+        inputs.push(this.injected[p] ?? this.testInput?.(p) ?? this.input.sample(p as 0 | 1));
       }
       const { events, snapshot } = stepRace(sim, this.leaveBehind, inputs);
       this.recorder?.push(inputs);
@@ -657,6 +748,7 @@ export class GameController {
     session.recordRace(sim);
     if (this.recorder && this.lastRecording) {
       this.lastRecording.races.push(this.recorder.finish(session.level.stamp.contentHash));
+      this.raceHashes.push(sim.hash());
       this.recorder = null;
     }
     const anyFinished = sim.players.some((p) => p.marble.status === "finished");
@@ -729,11 +821,13 @@ export class GameController {
     const session = this.session!;
     this.highScores.value = loadHighScores();
     this.highlightRank.value = -1;
+    this.scoresSource.value = "local";
     let table = this.highScores.value;
+    const global = this.globalTable;
     this.pendingEntries = [];
     for (let p = 0; p < session.players; p++) {
       const score = session.scores[p]!;
-      if (qualifies(table, score)) {
+      if (qualifies(table, score) || (global !== null && qualifies(global, score))) {
         this.pendingEntries.push({ player: p, score, race: session.reached[p]! });
         table = insertScore(table, {
           initials: "AAA",
