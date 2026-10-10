@@ -1,0 +1,12 @@
+# Score server (P15). Serves the bundle from `npm run api:build`; `npm run deploy` builds both.
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+# pg is the only dependency left outside the bundle (vite.server.config.ts).
+ARG PG_VERSION
+RUN npm install --omit=dev --no-audit --no-fund --no-package-lock "pg@${PG_VERSION}" \
+  && npm cache clean --force
+COPY dist-server/ ./
+USER node
+EXPOSE 8080
+CMD ["node", "server.mjs"]

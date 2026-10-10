@@ -16,7 +16,7 @@
     "build": "vite build",
     "prebuild": "npm run levels:check",
     "preview": "vite preview --port 4173 --strictPort",
-    "deploy": "npm run build && tsx tools/deploy/gke.ts deploy",
+    "deploy": "npm run build && npm run api:build && tsx tools/deploy/gke.ts deploy",
     "deploy:status": "tsx tools/deploy/gke.ts status",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint . && prettier --check .",

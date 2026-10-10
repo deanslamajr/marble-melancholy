@@ -1,3 +1,4 @@
 *
 !dist/
 !deploy/nginx.conf
+!dist-server/

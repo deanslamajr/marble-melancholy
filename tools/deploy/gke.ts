@@ -22,6 +22,7 @@ const GATEWAY_IP = "34.117.49.14";
 const CONTEXT = process.env.KUBE_CONTEXT ?? "gke_development-262721_us-central1-a_cluster-1";
 const IMAGE_REPO =
   process.env.IMAGE_REPO ?? `us-central1-docker.pkg.dev/${PROJECT}/marble-melancholy/web`;
+const API_REPO = IMAGE_REPO.replace(/\/web$/, "/api");
 const GCLOUD = process.env.GCLOUD ?? "gcloud";
 
 function out(cmd: string, args: string[], input?: string): string {
@@ -54,10 +55,7 @@ function imageTag(): string {
   return `${sha}-dirty-${stamp}`;
 }
 
-function deploy(): void {
-  if (!existsSync(join(ROOT, "dist/index.html")))
-    throw new Error("dist/ missing; run npm run build");
-  const image = `${IMAGE_REPO}:${imageTag()}`;
+function buildAndPush(image: string, dockerfile: string, buildArgs: string[] = []): void {
   console.log(`\n▶ Building and pushing ${image}`);
   run("docker", [
     "buildx",
@@ -66,22 +64,57 @@ function deploy(): void {
     "linux/amd64",
     "--provenance=false",
     "--sbom=false",
+    "--file",
+    dockerfile,
+    ...buildArgs.flatMap((a) => ["--build-arg", a]),
     "--tag",
     image,
     "--push",
     ".",
   ]);
-  const manifest = readFileSync(join(ROOT, "deploy/k8s/marble.yaml"), "utf8");
-  if (!manifest.includes("image: IMAGE"))
-    throw new Error("image placeholder missing in marble.yaml");
-  console.log(`\n▶ Applying deploy/k8s/marble.yaml to ${CONTEXT}`);
-  run("kubectl", kubectl("apply", "-f", "-"), manifest.replace("image: IMAGE", `image: ${image}`));
+}
+
+function applyWithImage(file: string, placeholder: string, image: string): void {
+  const manifest = readFileSync(join(ROOT, file), "utf8");
+  if (!manifest.includes(`image: ${placeholder}`))
+    throw new Error(`image placeholder missing in ${file}`);
+  console.log(`\n▶ Applying ${file} to ${CONTEXT}`);
   run(
     "kubectl",
-    kubectl("-n", NAMESPACE, "rollout", "status", "deployment/marble", "--timeout=180s"),
+    kubectl("apply", "-f", "-"),
+    manifest.replace(`image: ${placeholder}`, `image: ${image}`),
   );
+}
+
+function rollout(deployment: string): void {
+  run(
+    "kubectl",
+    kubectl("-n", NAMESPACE, "rollout", "status", `deployment/${deployment}`, "--timeout=180s"),
+  );
+}
+
+function deploy(): void {
+  if (!existsSync(join(ROOT, "dist/index.html")))
+    throw new Error("dist/ missing; run npm run build");
+  if (!existsSync(join(ROOT, "dist-server/server.mjs")))
+    throw new Error("dist-server/ missing; run npm run api:build");
+  const tag = imageTag();
+  const image = `${IMAGE_REPO}:${tag}`;
+  const apiImage = `${API_REPO}:${tag}`;
+  const pgVersion = (
+    JSON.parse(readFileSync(join(ROOT, "node_modules/pg/package.json"), "utf8")) as {
+      version: string;
+    }
+  ).version;
+  buildAndPush(image, "Dockerfile");
+  buildAndPush(apiImage, "Dockerfile.api", [`PG_VERSION=${pgVersion}`]);
+  // The API goes first, so the route's /api rule never points at a missing Service.
+  applyWithImage("deploy/k8s/api.yaml", "API_IMAGE", apiImage);
+  rollout("marble-api");
+  applyWithImage("deploy/k8s/marble.yaml", "IMAGE", image);
+  rollout("marble");
   console.log(
-    `\nDeployed ${image}\nRun npm run deploy:status to check the route, certificate and DNS.`,
+    `\nDeployed ${image} and ${apiImage}\nRun npm run deploy:status to check the route, certificate and DNS.`,
   );
 }
 
@@ -99,6 +132,18 @@ async function status(): Promise<void> {
     ),
   );
   line("deployment", ready ?? "not found");
+  const apiReady = tryOut(
+    "kubectl",
+    kubectl(
+      "-n",
+      NAMESPACE,
+      "get",
+      "deployment/marble-api",
+      "-o",
+      "jsonpath={.status.readyReplicas}/{.spec.replicas} {.spec.template.spec.containers[0].image}",
+    ),
+  );
+  line("api deploy", apiReady ?? "not found");
 
   const route = tryOut(
     "kubectl",
@@ -189,6 +234,10 @@ async function status(): Promise<void> {
         ? `${res.message} ${(res.cause as Error | undefined)?.message ?? ""}`
         : `${res.status} cache-control: ${res.headers.get("cache-control")}`,
     );
+    const api = await fetch(`https://${HOST}/api/health`)
+      .then(async (r) => `${r.status} ${await r.text()}`)
+      .catch((e: Error) => e.message);
+    line("api", api);
   }
 }
 
