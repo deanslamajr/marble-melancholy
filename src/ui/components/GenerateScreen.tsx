@@ -3,7 +3,7 @@ import { GEN_DIFFICULTIES, navigate, route, routeHash, type GenDifficulty } from
 import type { GameController } from "../../game/GameController";
 import type { CourseMetrics } from "../../level/generate/metrics";
 import type { GenerateProgress } from "../../level/generate/pipeline";
-import type { CompiledLevel } from "../../level/types";
+import { SURFACE, type CompiledLevel } from "../../level/types";
 import { LevelLoader } from "../../levels/loader";
 import { TICK_HZ } from "../../sim/constants";
 import { putCustomLevel } from "../../storage/levelsStore";
@@ -22,6 +22,20 @@ type Ready = {
 };
 type Busy = { kind: "busy"; progress?: GenerateProgress };
 type Status = Busy | Ready | { kind: "error"; message: string };
+
+/** Tiers whose diagonal lines need finer angles than the 8 keyboard directions (G15). */
+const ANALOG_TIERS: ReadonlySet<GenDifficulty> = new Set(["insane", "nightmare"]);
+
+/** Entity kinds plus the surface hazards (acid, ice, speed strips) a course uses. */
+function courseFeatures(lvl: CompiledLevel): string[] {
+  const kinds = new Set<string>(lvl.entities.map((e) => e.type));
+  for (const s of lvl.cells.surfaces) {
+    if (s === SURFACE.acid) kinds.add("acid");
+    else if (s === SURFACE.ice) kinds.add("ice");
+    else if (s >= SURFACE.speedN) kinds.add("speed");
+  }
+  return [...kinds];
+}
 
 const ABORTED = "generation cancelled";
 /** Longest stretch of solver work between yields to the browser, in ms. */
@@ -183,7 +197,7 @@ export function GenerateScreen() {
   const lvl = ready?.level;
   const m = ready?.metrics;
   const busy = status.kind === "busy" ? status.progress : undefined;
-  const hazards = lvl ? [...new Set(lvl.entities.map((e) => e.type))] : [];
+  const hazards = lvl ? courseFeatures(lvl) : [];
 
   return (
     <div class="overlay panel-screen generate-screen" data-testid="generate-screen">
@@ -219,7 +233,12 @@ export function GenerateScreen() {
           onBlur={applySeed}
         />
       </label>
-      <div class="gen-card" data-testid="gen-status" data-status={status.kind}>
+      <div
+        class="gen-card"
+        data-testid="gen-status"
+        data-status={status.kind}
+        data-hash={ready?.level.stamp.contentHash}
+      >
         {status.kind === "busy" && (
           <PixelText size="s" tone="dim" testid="gen-progress">
             {busy?.phase === "solve"
@@ -252,6 +271,11 @@ export function GenerateScreen() {
                 {Math.round(m.offAxis)}% DIAGONAL · MIN WIDTH {m.minWidth.toFixed(1)} ·{" "}
                 {Math.round(m.railless)}% RAIL-LESS · {Math.round(m.overVoid)}% OVER VOID ·{" "}
                 {m.airborne} AIRBORNE
+              </PixelText>
+            )}
+            {ANALOG_TIERS.has(difficulty) && (
+              <PixelText size="s" tone="dim" testid="gen-input-hint">
+                BEST WITH MOUSE, GAMEPAD OR TOUCH
               </PixelText>
             )}
             {linkVersion !== undefined && linkVersion !== ready.version && (
