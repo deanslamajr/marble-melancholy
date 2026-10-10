@@ -154,10 +154,18 @@ describe("course generator", () => {
     expect([...seen].map(rel)).not.toContain("src/level/parse.ts");
   });
 
-  it("the game reaches the generator pipeline only through a dynamic import", () => {
-    const screen = read(join(SRC, "ui", "components", "GenerateScreen.tsx"));
-    expect(screen).toContain('import("../../level/generate/pipeline")');
-    expect(staticImports(screen).some((s) => s.includes("level/generate"))).toBe(false);
+  it("only the generator worker imports the pipeline; the page starts it by URL (G16)", () => {
+    const pipeline = join(SRC, "level", "generate", "pipeline.ts");
+    const worker = join(SRC, "app", "generateWorker.ts");
+    const importers = srcFiles
+      .filter((f) => !rel(f).startsWith("src/level/generate/"))
+      .filter((f) => staticImports(read(f)).some((s) => resolveLocal(f, s) === pipeline))
+      .map(rel);
+    expect(importers).toEqual([rel(worker)]);
+    expect(read(join(SRC, "app", "generateClient.ts"))).toContain(
+      'new Worker(new URL("./generateWorker.ts", import.meta.url), { type: "module" })',
+    );
+    expect(read(join(SRC, "ui", "components", "GenerateScreen.tsx"))).not.toMatch(/import\(/);
   });
 });
 

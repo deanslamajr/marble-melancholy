@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { generateInWorker } from "../../app/generateClient";
 import { GEN_DIFFICULTIES, navigate, route, routeHash, type GenDifficulty } from "../../app/router";
 import type { GameController } from "../../game/GameController";
 import type { CourseMetrics } from "../../level/generate/metrics";
@@ -37,10 +38,6 @@ function courseFeatures(lvl: CompiledLevel): string[] {
   return [...kinds];
 }
 
-const ABORTED = "generation cancelled";
-/** Longest stretch of solver work between yields to the browser, in ms. */
-const SLICE_MS = 30;
-
 const cache = new Map<string, Ready>();
 
 export function randomSeed(): number {
@@ -48,32 +45,22 @@ export function randomSeed(): number {
 }
 
 /**
- * Generates through the lazily loaded compile pipeline, then passes the stamp check like any level.
- * The solver runs in slices so the page keeps painting; `live` returning false cancels it.
+ * Generates in the generator worker (G16), then passes the stamp check like any level. Aborting
+ * `signal` terminates the worker.
  */
 async function generate(
   difficulty: GenDifficulty,
   seed: number,
   onProgress: (p: GenerateProgress) => void,
-  live: () => boolean,
+  signal: AbortSignal,
 ): Promise<Ready | Status> {
   const key = `${difficulty}:${seed}`;
   const hit = cache.get(key);
   if (hit) return hit;
   try {
-    const { generateLevel } = await import("../../level/generate/pipeline");
-    let last = performance.now();
-    const r = await generateLevel({
-      seed,
-      difficulty,
-      onProgress: async (p) => {
-        if (performance.now() - last < SLICE_MS) return;
-        onProgress(p);
-        await new Promise((res) => setTimeout(res, 0));
-        last = performance.now();
-        if (!live()) throw new Error(ABORTED);
-      },
-    });
+    const job = generateInWorker({ seed, difficulty }, onProgress);
+    signal.addEventListener("abort", () => job.cancel(), { once: true });
+    const r = await job.result;
     if (!r.ok) return { kind: "error", message: r.error };
     const level = await LevelLoader.load(r.level);
     const ready: Ready = {
@@ -138,13 +125,14 @@ export function GenerateScreen() {
   useEffect(() => {
     if (seed === undefined) return;
     let alive = true;
+    const stop = new AbortController();
     setStatus({ kind: "busy" });
     setMsg(null);
     void generate(
       difficulty,
       seed,
       (progress) => alive && setStatus({ kind: "busy", progress }),
-      () => alive,
+      stop.signal,
     ).then((s) => {
       if (!alive) return;
       setStatus(s);
@@ -152,6 +140,7 @@ export function GenerateScreen() {
     });
     return () => {
       alive = false;
+      stop.abort();
     };
   }, [c, difficulty, seed, autoPlay, linkVersion]);
 

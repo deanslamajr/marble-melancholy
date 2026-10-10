@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
+import { generateInWorker } from "../app/generateClient";
 import { navigate } from "../app/router";
 import { TICK_HZ } from "../sim/constants";
 import {
@@ -14,7 +15,6 @@ import {
   type DraftRecord,
 } from "../storage/levelsStore";
 import { DIFFICULTIES, type Difficulty } from "../level/generate/generate";
-import { generateLevel } from "../level/generate/pipeline";
 import { newDraftSource } from "./editor/commands";
 import { downloadText, importText, pickFile, sourceFromCompiled } from "./editor/io";
 import {
@@ -148,18 +148,10 @@ export function BuilderHome() {
     setGenerating(true);
     setGenProgress(null);
     try {
-      let last = performance.now();
-      const r = await generateLevel({
-        seed,
-        difficulty: genDifficulty,
-        // Yield to the page now and then so the search does not freeze the builder.
-        onProgress: async (p) => {
-          if (performance.now() - last < 30) return;
-          setGenProgress(p.phase === "solve" ? p.progress : null);
-          await new Promise((res) => setTimeout(res, 0));
-          last = performance.now();
-        },
-      });
+      // The worker keeps the builder responsive while the search runs (G16).
+      const r = await generateInWorker({ seed, difficulty: genDifficulty }, (p) =>
+        setGenProgress(p.phase === "solve" ? p.progress : null),
+      ).result;
       if (!r.ok) {
         setMessage(r.error);
         return;

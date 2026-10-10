@@ -33,6 +33,8 @@ export default defineConfig({
     target: "es2022",
     sourcemap: false,
   },
+  // The generator worker (G16) is a module worker; ES output lets its pipeline split into chunks.
+  worker: { format: "es" },
   server: { port: 5173 },
   preview: { port: 4173, strictPort: true },
 });
