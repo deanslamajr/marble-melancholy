@@ -195,8 +195,9 @@ export class Renderer {
   /** Re-reads the canvas's CSS size; sets the visible view and the backing store. */
   resize(): void {
     const ratio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    this.view = viewSizeFor(this.canvas.clientWidth, this.canvas.clientHeight);
-    const dpr = backingScale(this.view, ratio);
+    const css = { w: this.canvas.clientWidth, h: this.canvas.clientHeight };
+    this.view = viewSizeFor(css.w, css.h);
+    const dpr = backingScale(this.view, ratio, css);
     const w = Math.round(this.view.w * dpr);
     const h = Math.round(this.view.h * dpr);
     if (this.canvas.width !== w) this.canvas.width = w;

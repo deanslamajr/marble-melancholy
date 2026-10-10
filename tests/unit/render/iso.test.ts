@@ -115,6 +115,18 @@ describe("visible view", () => {
       expect(v.w * v.h * s * s).toBeLessThanOrEqual(base * VIEW_PIXEL_BUDGET + 1e-6);
     }
   });
+
+  it("never gives the canvas more than 2 pixels per CSS pixel on screen (R19)", () => {
+    // A portrait phone shows the 960×1280 view in a 412×549 CSS box.
+    const portrait = backingScale({ w: 960, h: 1280 }, 2.625, { w: 412, h: 549 });
+    expect(Math.round(960 * portrait)).toBe(824);
+    // A landscape phone: 915×412 CSS for the 2.22:1 view.
+    const view = viewSizeFor(915, 412);
+    const landscape = backingScale(view, 2.625, { w: 915, h: 412 });
+    expect(Math.round(view.w * landscape)).toBe(1830);
+    // Large desktop windows keep the full budget.
+    expect(backingScale({ w: 960, h: 540 }, 2, { w: 1920, h: 1080 })).toBe(2);
+  });
 });
 
 describe("computeBounds", () => {

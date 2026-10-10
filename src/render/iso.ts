@@ -27,11 +27,17 @@ export function viewSizeFor(cssW: number, cssH: number): ViewSize {
   return { w: VIEW_W, h: Math.round(VIEW_W / a) };
 }
 
-/** Backing-store pixels per logical pixel: min(DPR, 2), reduced to keep within the pixel budget. */
-export function backingScale(view: ViewSize, devicePixelRatio: number): number {
+/**
+ * Backing-store pixels per logical pixel: min(DPR, 2) per CSS pixel of the drawn image, reduced to
+ * keep within the pixel budget (R16, R19). `css` is the canvas's CSS size; phones show the logical
+ * view in far fewer CSS pixels than it has, so scaling the view itself overshoots the screen.
+ */
+export function backingScale(view: ViewSize, devicePixelRatio: number, css?: ViewSize): number {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   const budget = VIEW_PIXEL_BUDGET * VIEW_W * VIEW_H;
-  return dpr * Math.min(1, Math.sqrt(budget / (view.w * view.h)));
+  const fit = Math.min(1, Math.sqrt(budget / (view.w * view.h)));
+  const k = css && css.w > 0 && css.h > 0 ? Math.min(css.w / view.w, css.h / view.h) : 1;
+  return dpr * Math.min(fit, k);
 }
 
 const HALF_W = TILE_W / 2;
