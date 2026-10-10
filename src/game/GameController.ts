@@ -22,6 +22,7 @@ import { recordBestTicks } from "../storage/levelsStore";
 import { loadSettings, saveSettings, type Settings } from "../storage/settings";
 import { AttractReel, type AttractRun } from "./attract";
 import { displaySeconds, elapsedTicks, raceBreakdown, type RaceBreakdown } from "./scoring";
+import { courseRaceSim, RaceRecorder, stepRace, type CourseRecording } from "./courseRun";
 import { GameSession } from "./session";
 import { canTransition, PHASE_SECONDS, simRuns, type GameState } from "./states";
 
@@ -116,6 +117,9 @@ export class GameController {
 
   private course: CompiledLevel[] = [];
   private session: GameSession | null = null;
+  private recorder: RaceRecorder | null = null;
+  /** Inputs of the course run in progress or just ended, for score verification (P15). */
+  lastRecording: CourseRecording | null = null;
   private sim: RaceSim | null = null;
   private prev: SimSnapshot | null = null;
   private cur: SimSnapshot | null = null;
@@ -351,6 +355,7 @@ export class GameController {
     }
     this.playersSelected.value = players;
     this.session = new GameSession("course", players, this.course);
+    this.lastRecording = { version: 1, players, races: [] };
     this.input.setPlayers(players);
     this.beginRaceIntro();
   }
@@ -367,15 +372,9 @@ export class GameController {
   private beginRaceIntro(): void {
     const session = this.session!;
     const level = session.level;
-    const start = session.startTicks();
     this.raceEpoch++;
-    this.sim = new RaceSim(level, {
-      players: session.players,
-      startTimeTicks: start,
-      countdown: true,
-      sittingOut: session.sittingOut,
-      baseScores: session.scores,
-    });
+    this.sim = courseRaceSim(session);
+    this.recorder = session.mode === "course" ? new RaceRecorder(session.players) : null;
     this.timeOutFlags = session.scores.map(() => false);
     this.lowTimeSecond = session.scores.map(() => -1);
     this.completeAt = -1;
@@ -390,7 +389,7 @@ export class GameController {
       number: session.mode === "course" ? session.raceNumber : null,
       label: session.mode === "course" ? "" : (this.customOpts.label ?? "CUSTOM RACE"),
       name: level.name,
-      timeSec: start.map((t) => displaySeconds(t)),
+      timeSec: session.currentStartTicks.map((t) => displaySeconds(t)),
       hazards,
       custom: session.mode === "custom",
       par: level.timing.par,
@@ -593,15 +592,12 @@ export class GameController {
       for (let p = 0; p < sim.playerCount; p++) {
         inputs.push(this.injected[p] ?? this.input.sample(p as 0 | 1));
       }
-      const events = sim.step(inputs);
+      const { events, snapshot } = stepRace(sim, this.leaveBehind, inputs);
+      this.recorder?.push(inputs);
       this.perf.ticks++;
       this.prev = this.cur;
-      this.cur = sim.snapshot();
+      this.cur = snapshot;
       for (const e of events) allEvents.push(e);
-      if (sim.playerCount === 2) {
-        const trailing = this.leaveBehind.tick(this.cur);
-        if (trailing !== null) sim.leaveBehind(trailing);
-      }
       this.handleSimEvents(events);
       if (this.state.value !== "countdown" && this.state.value !== "racing") break;
     }
@@ -659,6 +655,10 @@ export class GameController {
     const session = this.session!;
     this.completeAt = -1;
     session.recordRace(sim);
+    if (this.recorder && this.lastRecording) {
+      this.lastRecording.races.push(this.recorder.finish(session.level.stamp.contentHash));
+      this.recorder = null;
+    }
     const anyFinished = sim.players.some((p) => p.marble.status === "finished");
     if (session.mode === "custom") {
       const p = sim.players[0]!;
