@@ -27,18 +27,19 @@ export const MAX_SEARCH_ATTEMPTS = 5;
 export const MAX_SOLUTION_SECONDS = 65;
 
 /**
- * Stated generation budget per course, average CPU time over seeds, in milliseconds (Node on a
- * laptop; includes retries, solving, metrics and stamping). Browsers are within about 1.5× of
- * this. A single seed may take up to WORST_BUDGET_FACTOR× its tier budget when several layouts
+ * Stated generation budget per course, average CPU time over seeds, in milliseconds (Node;
+ * includes retries, solving, metrics and stamping). The same numbers apply on every machine, so
+ * they leave room for hosted CI runners, which need about 1.7× the development Mac's CPU time
+ * (T18). A single seed may take up to WORST_BUDGET_FACTOR× its tier budget when several layouts
  * exhaust their search budget before one solves (L25).
  */
 export const GEN_BUDGET_MS: Record<Difficulty, number> = {
   easy: 500,
   medium: 600,
-  hard: 3000,
-  expert: 3000,
-  insane: 5000,
-  nightmare: 5000,
+  hard: 5000,
+  expert: 5000,
+  insane: 12000,
+  nightmare: 12000,
 };
 export const WORST_BUDGET_FACTOR = 4;
 
