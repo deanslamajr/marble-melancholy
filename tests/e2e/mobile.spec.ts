@@ -213,3 +213,42 @@ test("the fullscreen toggle enters and leaves fullscreen where the API exists", 
   await toggle.tap();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
 });
+
+// On-screen keyboards send text without usable key codes; insertText types the same way (G21).
+test("a tap on the initials opens a text field the phone keyboard can type into", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  let posted: { initials: string } | null = null;
+  await page.route("**/api/scores/campaign", async (route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: { table: [] } });
+    posted = route.request().postDataJSON();
+    const row = { initials: "DHS", score: 1234, race: 2, players: 1, date: "2026-10-10T00:00:00Z" };
+    return route.fulfill({ json: { score: 1234, race: 2, index: 0, table: [row] } });
+  });
+  await openGame(page);
+  await page.evaluate(() => {
+    window.__mm!.fastPhases(true);
+    window.__mm!.autoplay(true);
+    window.__mm!.startCourse(1);
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__mm!.replayRecording()?.live.length ?? 0), {
+      timeout: 90_000,
+    })
+    .toBeGreaterThanOrEqual(1);
+  await expect.poll(() => state(page), { timeout: 30_000 }).toBe("racing");
+  await page.evaluate(() => {
+    window.__mm!.autoplay(false);
+    window.__mm!.setTimer(0, 0.3);
+  });
+  await expect.poll(() => state(page), { timeout: 30_000 }).toBe("highScoreEntry");
+  const field = page.getByTestId("initials-input");
+  await field.tap();
+  await expect(field).toBeFocused();
+  await page.keyboard.insertText("dhs");
+  await expect(page.locator(".initial")).toHaveText(["D", "H", "S"]);
+  await expect(field).not.toBeFocused();
+  await page.getByTestId("initials-ok").tap();
+  await expect.poll(() => posted?.initials).toBe("DHS");
+});

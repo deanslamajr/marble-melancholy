@@ -470,6 +470,7 @@ canvas.world {
 }
 
 .initials-entry {
+  position: relative;
   display: flex;
   gap: calc(1.4 * var(--uw));
 }
@@ -477,9 +478,23 @@ canvas.world {
   font-size: calc(9 * var(--uh));
   font-weight: 700;
   width: calc(9 * var(--uh));
+  text-align: center;
   background: rgba(255, 255, 255, 0.05);
-  border: 0;
   border-bottom: calc(0.6 * var(--uh)) solid transparent;
+}
+/* An invisible text field over the letters: a tap opens the on-screen keyboard (G21). 16px keeps
+   iOS from zooming the page when it takes focus. */
+.initials-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: 16px;
+  color: transparent;
+  caret-color: transparent;
+  background: transparent;
+  border: 0;
   cursor: pointer;
 }
 .initial.active {
