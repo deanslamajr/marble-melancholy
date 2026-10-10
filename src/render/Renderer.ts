@@ -32,7 +32,7 @@ import {
 } from "./draw/entities";
 import { defaultLook, drawMarble, drawShadow, type MarbleLook } from "./draw/marble";
 import { sphereAnchor } from "./depth";
-import { backingScale, VIEW_H, VIEW_W, viewSizeFor, type ViewSize } from "./iso";
+import { backingScale, GRAPHICS_DENSITY, VIEW_H, VIEW_W, viewSizeFor, type ViewSize } from "./iso";
 import { Particles } from "./particles";
 import { TerrainStrips, type ViewRect } from "./terrainStrips";
 import { NEUTRAL_FLAG, playerColor } from "./themes";
@@ -41,6 +41,8 @@ export interface RendererOptions {
   debug?: boolean;
   /** Set false to draw terrain directly every frame (offscreen-canvas fallback, §7.11). */
   cache?: boolean;
+  /** Most canvas pixels per CSS pixel (`GRAPHICS_DENSITY`, R20). */
+  density?: number;
 }
 
 const K_PLAYER = 0;
@@ -126,6 +128,7 @@ export class Renderer {
   private readonly debug: boolean;
   private readonly cacheEnabled: boolean;
   private dpr = 1;
+  private density: number;
   private view: ViewSize = { w: VIEW_W, h: VIEW_H };
   private level: UnstampedLevel | null = null;
   private env: CellEnv | null = null;
@@ -168,7 +171,13 @@ export class Renderer {
     this.ctx = ctx;
     this.debug = opts?.debug ?? false;
     this.cacheEnabled = opts?.cache ?? true;
+    this.density = opts?.density ?? GRAPHICS_DENSITY.normal;
     this.resize();
+  }
+
+  /** Changes the Graphics density; the backing store follows on the next resize(). */
+  setDensity(density: number): void {
+    this.density = density;
   }
 
   setLevel(level: UnstampedLevel): void {
@@ -197,7 +206,7 @@ export class Renderer {
     const ratio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     const css = { w: this.canvas.clientWidth, h: this.canvas.clientHeight };
     this.view = viewSizeFor(css.w, css.h);
-    const dpr = backingScale(this.view, ratio, css);
+    const dpr = backingScale(this.view, ratio, css, this.density);
     const w = Math.round(this.view.w * dpr);
     const h = Math.round(this.view.h * dpr);
     if (this.canvas.width !== w) this.canvas.width = w;

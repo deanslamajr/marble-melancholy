@@ -7,6 +7,7 @@ import { touchRadiusFor } from "../input/touch";
 import type { CompiledLevel, EntityType } from "../level/types";
 import { LevelLoader } from "../levels/loader";
 import { Camera, LeaveBehindRule } from "../render/camera";
+import { GRAPHICS_DENSITY } from "../render/iso";
 import { Renderer } from "../render/Renderer";
 import { TICK_HZ } from "../sim/constants";
 import { RaceSim } from "../sim/race";
@@ -207,6 +208,7 @@ export class GameController {
     this.renderer?.dispose();
     this.renderer = new Renderer(canvas, {
       debug: new URLSearchParams(location.search).has("debug"),
+      density: GRAPHICS_DENSITY[this.settings.value.graphics],
     });
     this.input.attach(canvas, touchSurface);
     this.resize();
@@ -413,6 +415,10 @@ export class GameController {
       p2Keys: s.p2Keys,
     });
     this.audio.setVolumes({ master: s.masterVolume, music: s.musicVolume, sfx: s.sfxVolume });
+    if (patch.graphics) {
+      this.renderer?.setDensity(GRAPHICS_DENSITY[s.graphics]);
+      this.resize();
+    }
   }
 
   /** Begin the six-race course. */

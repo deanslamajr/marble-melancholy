@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backingScale,
+  GRAPHICS_DENSITY,
   computeBounds,
   fromScreen,
   project,
@@ -126,6 +127,18 @@ describe("visible view", () => {
     expect(Math.round(view.w * landscape)).toBe(1830);
     // Large desktop windows keep the full budget.
     expect(backingScale({ w: 960, h: 540 }, 2, { w: 1920, h: 1080 })).toBe(2);
+  });
+
+  it("follows the Graphics density: fast 1, sharp up to the screen's own (R20)", () => {
+    const view = { w: 960, h: 1280 };
+    const css = { w: 412, h: 549 };
+    const width = (d: number) => Math.round(960 * backingScale(view, 2.625, css, d));
+    expect(width(GRAPHICS_DENSITY.fast)).toBe(412);
+    expect(width(GRAPHICS_DENSITY.normal)).toBe(824);
+    expect(width(GRAPHICS_DENSITY.sharp)).toBe(1081);
+    expect(backingScale({ w: 960, h: 540 }, 3.5, { w: 960, h: 540 }, GRAPHICS_DENSITY.sharp)).toBe(
+      3,
+    );
   });
 });
 

@@ -20,6 +20,7 @@ describe("settings", () => {
       showFps: false,
       touchControls: "auto",
       screenShake: true,
+      graphics: "normal",
     });
   });
 
@@ -51,6 +52,7 @@ describe("settings", () => {
         touchControls: "on",
         screenShake: "yes",
         musicVolume: null,
+        graphics: "ultra",
       }),
     );
     expect(loadSettings(st)).toEqual({
@@ -60,8 +62,9 @@ describe("settings", () => {
       mouseSensitivity: 2,
       touchControls: "on",
     });
-    st.setItem(SETTINGS_KEY, JSON.stringify({ mouseSensitivity: 0.1 }));
+    st.setItem(SETTINGS_KEY, JSON.stringify({ mouseSensitivity: 0.1, graphics: "fast" }));
     expect(loadSettings(st).mouseSensitivity).toBe(0.5);
+    expect(loadSettings(st).graphics).toBe("fast");
   });
 
   it("works without an explicit storage in Node", () => {

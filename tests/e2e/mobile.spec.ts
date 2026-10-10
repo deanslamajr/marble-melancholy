@@ -252,3 +252,25 @@ test("a tap on the initials opens a text field the phone keyboard can type into"
   await page.getByTestId("initials-ok").tap();
   await expect.poll(() => posted?.initials).toBe("DHS");
 });
+
+// R20: FAST draws one canvas pixel per CSS pixel; SHARP uses the screen's own density.
+test("the Graphics setting changes the canvas resolution", async ({ page }) => {
+  await openGame(page);
+  await page
+    .getByTestId("title-menu")
+    .getByRole("menuitem", { name: /SETTINGS$/ })
+    .tap();
+  const graphics = page.getByRole("radiogroup", { name: "GRAPHICS" });
+  const density = () =>
+    page.evaluate(() => {
+      const c = document.getElementById("world") as HTMLCanvasElement;
+      return c.width / c.clientWidth;
+    });
+  await graphics.getByRole("radio", { name: "FAST" }).tap();
+  await expect.poll(density).toBeCloseTo(1, 1);
+  await graphics.getByRole("radio", { name: "SHARP" }).tap();
+  const dpr = await page.evaluate(() => Math.min(window.devicePixelRatio, 3));
+  await expect.poll(density).toBeCloseTo(dpr, 1);
+  await graphics.getByRole("radio", { name: "NORMAL" }).tap();
+  await expect.poll(density).toBeCloseTo(Math.min(dpr, 2), 1);
+});

@@ -88,6 +88,16 @@ export function SettingsScreen(props: { onClose: () => void }) {
           onChange={(v) => set({ touchControls: v })}
         />
         <Toggle
+          label="GRAPHICS"
+          value={s.graphics}
+          options={[
+            { value: "fast", label: "FAST" },
+            { value: "normal", label: "NORMAL" },
+            { value: "sharp", label: "SHARP" },
+          ]}
+          onChange={(v) => set({ graphics: v })}
+        />
+        <Toggle
           label="SHOW FPS"
           value={s.showFps}
           options={[

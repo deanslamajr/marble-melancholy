@@ -10,6 +10,8 @@ export interface Settings {
   showFps: boolean;
   touchControls: "auto" | "on" | "off";
   screenShake: boolean;
+  /** Canvas pixels per screen point: fast 1, normal 2, sharp up to 3 (R20). */
+  graphics: "fast" | "normal" | "sharp";
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   showFps: false,
   touchControls: "auto",
   screenShake: true,
+  graphics: "normal",
 });
 
 export const SENSITIVITY_MIN = 0.5;
@@ -105,6 +108,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     showFps: bool(o.showFps, d.showFps),
     touchControls: oneOf(o.touchControls, ["auto", "on", "off"], d.touchControls),
     screenShake: bool(o.screenShake, d.screenShake),
+    graphics: oneOf(o.graphics, ["fast", "normal", "sharp"], d.graphics),
   };
 }
 

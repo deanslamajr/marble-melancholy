@@ -13,6 +13,8 @@ export const VIEW_MIN_ASPECT = 3 / 4;
 export const VIEW_MAX_ASPECT = 2.4;
 /** Backing-store pixels may exceed the base view's by at most this factor (R16). */
 export const VIEW_PIXEL_BUDGET = 1.35;
+/** Most canvas pixels per CSS pixel for each Graphics setting (R20). */
+export const GRAPHICS_DENSITY = { fast: 1, normal: 2, sharp: 3 } as const;
 
 export interface ViewSize {
   w: number;
@@ -28,12 +30,17 @@ export function viewSizeFor(cssW: number, cssH: number): ViewSize {
 }
 
 /**
- * Backing-store pixels per logical pixel: min(DPR, 2) per CSS pixel of the drawn image, reduced to
- * keep within the pixel budget (R16, R19). `css` is the canvas's CSS size; phones show the logical
- * view in far fewer CSS pixels than it has, so scaling the view itself overshoots the screen.
+ * Backing-store pixels per logical pixel: min(DPR, maxDensity) per CSS pixel of the drawn image,
+ * reduced to keep within the pixel budget (R16, R19, R20). `css` is the canvas's CSS size; phones
+ * show the logical view in far fewer CSS pixels than it has, so scaling the view overshoots.
  */
-export function backingScale(view: ViewSize, devicePixelRatio: number, css?: ViewSize): number {
-  const dpr = Math.min(devicePixelRatio || 1, 2);
+export function backingScale(
+  view: ViewSize,
+  devicePixelRatio: number,
+  css?: ViewSize,
+  maxDensity: number = GRAPHICS_DENSITY.normal,
+): number {
+  const dpr = Math.min(devicePixelRatio || 1, maxDensity);
   const budget = VIEW_PIXEL_BUDGET * VIEW_W * VIEW_H;
   const fit = Math.min(1, Math.sqrt(budget / (view.w * view.h)));
   const k = css && css.w > 0 && css.h > 0 ? Math.min(css.w / view.w, css.h / view.h) : 1;
