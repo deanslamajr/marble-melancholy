@@ -29,9 +29,12 @@ test("a qualifying score is sent with its recording and the shared table shows i
 }) => {
   test.setTimeout(120_000);
   let posted: { initials: string; player: number; recording: { races: unknown[] } } | null = null;
+  let answer!: () => void;
+  const answered = new Promise<void>((r) => (answer = r));
   await page.route("**/api/scores/campaign", async (route) => {
     if (route.request().method() !== "POST") return route.fulfill({ json: { table: [] } });
     posted = route.request().postDataJSON();
+    await answered;
     const row = { initials: "TST", score: 1234, race: 2, players: 1, date: "2026-10-10T00:00:00Z" };
     return route.fulfill({ json: { score: 1234, race: 2, index: 0, table: [row] } });
   });
@@ -48,5 +51,46 @@ test("a qualifying score is sent with its recording and the shared table shows i
   await expect.poll(() => posted !== null, { timeout: 10_000 }).toBe(true);
   expect(posted!).toMatchObject({ initials: "TST", player: 0 });
   expect(posted!.recording.races).toHaveLength(2);
-  await expect(page.getByTestId("scores-source")).toHaveText("ALL PLAYERS");
+  // Until the server answers, the table shows nothing rather than this device's rows (G19).
+  const table = page.getByTestId("highscore-table");
+  await expect(table.getByTestId("scores-source")).toHaveText("LOADING");
+  await expect(table.locator("tr")).toHaveCount(0);
+  answer();
+  await expect(table.getByTestId("scores-source")).toHaveText("ALL PLAYERS");
+  await expect(table.locator("tr")).toHaveCount(1);
+  await expect(table.locator("tr.hl")).toContainText("TST");
+});
+
+test("the score screen waits for the shared table instead of showing stand-in rows", async ({
+  page,
+}) => {
+  let answer!: () => void;
+  const answered = new Promise<void>((r) => (answer = r));
+  await page.route("**/api/scores/campaign", async (route) => {
+    await answered;
+    const row = { initials: "NET", score: 4321, race: 3, players: 1, date: "2026-10-10T00:00:00Z" };
+    return route.fulfill({ json: { table: [row] } });
+  });
+  await openGame(page);
+  await page
+    .getByTestId("title-menu")
+    .getByRole("menuitem", { name: /HIGH SCORES$/ })
+    .click();
+  const screen = page.getByTestId("highscores");
+  await expect(screen.getByTestId("scores-source")).toHaveText("LOADING");
+  await expect(screen.locator("tr")).toHaveCount(0);
+  answer();
+  await expect(screen.getByTestId("scores-source")).toHaveText("ALL PLAYERS");
+  await expect(screen.locator("tr")).toHaveCount(1);
+  await expect(screen.locator("tr")).toContainText("NET");
+});
+
+test("without the score server the screen falls back to this device's table", async ({ page }) => {
+  await page.route("**/api/scores/campaign", (route) => route.fulfill({ status: 503, body: "" }));
+  await openGame(page);
+  await page
+    .getByTestId("title-menu")
+    .getByRole("menuitem", { name: /HIGH SCORES$/ })
+    .click();
+  await expect(page.getByTestId("scores-source")).toHaveText("THIS DEVICE");
 });

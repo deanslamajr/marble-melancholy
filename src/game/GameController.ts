@@ -110,11 +110,20 @@ export class GameController {
   readonly results = signal<RaceResults | null>(null);
   readonly final = signal<FinalCard | null>(null);
   readonly entry = signal<PendingEntry | null>(null);
-  readonly highScores = signal<HighScoreEntry[]>(loadHighScores());
+  readonly highScores = signal<HighScoreEntry[]>([]);
   readonly highlightRank = signal<number>(-1);
-  /** Where `highScores` came from: the shared server table or this device (P15). */
-  readonly scoresSource = signal<"global" | "local">("local");
+  /**
+   * Where `highScores` came from: the shared server table, this device, or nothing yet while the
+   * shared table is on its way (P15, G19).
+   */
+  readonly scoresSource = signal<"global" | "local" | "loading">("loading");
   private globalTable: HighScoreEntry[] | null = null;
+  /** Course-end submissions still waiting for the server, and the newest accepted rank. */
+  private submitsPending = 0;
+  private submitSeq = 0;
+  private appliedSeq = 0;
+  private globalRank = -1;
+  private localResult: { table: HighScoreEntry[]; rank: number } | null = null;
   readonly settings = signal<Settings>(loadSettings());
   readonly error = signal<string | null>(null);
   readonly paused = signal(false);
@@ -186,6 +195,7 @@ export class GameController {
       this.course = [];
     }
     this.reel = new AttractReel(this.course);
+    void this.refreshGlobalTable();
     this.go("title");
   }
 
@@ -343,13 +353,16 @@ export class GameController {
     this.go(back);
   }
 
+  /** Shows the cached shared table at once, or nothing until it arrives; never a stand-in. */
   openScores(): void {
-    this.highScores.value = loadHighScores();
-    this.highlightRank.value = -1;
-    this.scoresSource.value = "local";
+    if (this.globalTable) this.showTable(this.globalTable, -1);
+    else this.showScores([], -1, "loading");
     this.go("scores");
     void this.refreshGlobalTable().then((t) => {
-      if (t && this.state.value === "scores") this.showTable(t, -1);
+      if (this.state.value !== "scores") return;
+      if (t) this.showTable(t, -1);
+      else if (this.scoresSource.value === "loading")
+        this.showScores(loadHighScores(), -1, "local");
     });
   }
 
@@ -360,9 +373,29 @@ export class GameController {
   }
 
   private showTable(table: HighScoreEntry[], rank: number): void {
+    this.showScores(table, rank, "global");
+  }
+
+  private showScores(
+    table: HighScoreEntry[],
+    rank: number,
+    source: "global" | "local" | "loading",
+  ): void {
     this.highScores.value = table;
     this.highlightRank.value = rank;
-    this.scoresSource.value = "global";
+    this.scoresSource.value = source;
+  }
+
+  /**
+   * The table after a course: blank while a submission is in flight, then the shared table, or
+   * this device's when the server never answered (G19).
+   */
+  private syncResultTable(): void {
+    if (this.state.value !== "highScoreTable") return;
+    if (this.submitsPending > 0) return this.showScores([], -1, "loading");
+    if (this.globalTable) return this.showTable(this.globalTable, this.globalRank);
+    const local = this.localResult ?? { table: loadHighScores(), rank: -1 };
+    this.showScores(local.table, local.rank, "local");
   }
 
   openCustom(): void {
@@ -500,7 +533,7 @@ export class GameController {
   submitInitials(initials: string): void {
     const e = this.entry.value;
     if (!e) return;
-    const res = insertScore(this.highScores.value, {
+    const res = insertScore(loadHighScores(), {
       initials,
       score: e.score,
       race: e.race,
@@ -508,9 +541,7 @@ export class GameController {
       date: new Date().toISOString(),
     });
     saveHighScores(res.table);
-    this.highScores.value = res.table;
-    this.highlightRank.value = res.rank;
-    this.scoresSource.value = "local";
+    this.localResult = res;
     this.audio.playUi("highScore");
     this.submitGlobal(initials, e.player);
     this.nextEntryOrTable();
@@ -520,14 +551,18 @@ export class GameController {
   private submitGlobal(initials: string, player: number): void {
     const rec = this.lastRecording;
     if (!rec || rec.races.length === 0) return;
+    this.submitsPending++;
+    const seq = ++this.submitSeq;
     void submitCampaignScore(initials, player, rec, `${APP_VERSION} ${BUILD_SHA}`).then((r) => {
-      if (!r) return;
-      if ("error" in r) {
-        console.warn(`score not accepted: ${r.error}`);
-        return;
+      this.submitsPending--;
+      if (r && "error" in r) console.warn(`score not accepted: ${r.error}`);
+      // In 2P the later submission's table also holds the earlier entry; keep the newest.
+      else if (r && seq > this.appliedSeq) {
+        this.appliedSeq = seq;
+        this.globalTable = r.table;
+        this.globalRank = r.index;
       }
-      this.globalTable = r.table;
-      if (this.state.value === "highScoreTable") this.showTable(r.table, r.index);
+      this.syncResultTable();
     });
   }
 
@@ -819,10 +854,9 @@ export class GameController {
 
   private queueEntries(): void {
     const session = this.session!;
-    this.highScores.value = loadHighScores();
-    this.highlightRank.value = -1;
-    this.scoresSource.value = "local";
-    let table = this.highScores.value;
+    this.globalRank = -1;
+    this.localResult = null;
+    let table = loadHighScores();
     const global = this.globalTable;
     this.pendingEntries = [];
     for (let p = 0; p < session.players; p++) {
@@ -849,6 +883,7 @@ export class GameController {
     }
     this.entry.value = null;
     this.go("highScoreTable");
+    this.syncResultTable();
   }
 
   private timeWarnings(): void {

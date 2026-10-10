@@ -3,6 +3,8 @@ import { formatScore } from "../../game/scoring";
 import { useController } from "../context";
 import { PixelText } from "./PixelText";
 
+const SOURCE_LABEL = { global: "ALL PLAYERS", local: "THIS DEVICE", loading: "LOADING" } as const;
+
 export function HighScoreTable(props: { onClose: () => void; testId?: string }) {
   const c = useController();
   const rows = c.highScores.value;
@@ -23,7 +25,7 @@ export function HighScoreTable(props: { onClose: () => void; testId?: string }) 
     <div class="overlay center-col" data-testid={props.testId ?? "highscores"}>
       <PixelText size="l">HIGH SCORES</PixelText>
       <PixelText size="s" tone="dim" testid="scores-source">
-        {c.scoresSource.value === "global" ? "ALL PLAYERS" : "THIS DEVICE"}
+        {SOURCE_LABEL[c.scoresSource.value]}
       </PixelText>
       <table class="scores">
         <tbody>
