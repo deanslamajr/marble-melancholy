@@ -35,7 +35,7 @@ import {
   type CourseRecording,
 } from "./courseRun";
 import { GameSession } from "./session";
-import { canTransition, PHASE_SECONDS, simRuns, type GameState } from "./states";
+import { canTransition, PHASE_SECONDS, simRuns, type GameState, type PauseReason } from "./states";
 
 export interface HudPlayer {
   index: number;
@@ -127,6 +127,7 @@ export class GameController {
   readonly settings = signal<Settings>(loadSettings());
   readonly error = signal<string | null>(null);
   readonly paused = signal(false);
+  readonly pauseReason = signal<PauseReason | null>(null);
   readonly playersSelected = signal<1 | 2>(1);
   readonly fps = signal(0);
 
@@ -180,7 +181,7 @@ export class GameController {
       keyboardMapping: s.keyboardMapping,
       p2Keys: s.p2Keys,
     });
-    this.input.onPauseRequest = () => this.pause();
+    this.input.onPauseRequest = (reason) => this.pause(reason);
     this.input.touch.enabled = false;
     this.audio.setVolumes({ master: s.masterVolume, music: s.musicVolume, sfx: s.sfxVolume });
   }
@@ -256,7 +257,7 @@ export class GameController {
    */
   setPageBackground(hidden: boolean, blurred: boolean): void {
     this.audio.setBackground(hidden || blurred);
-    if (hidden) this.pause();
+    if (hidden) this.pause("hidden");
   }
 
   /** Installs visibility and focus listeners for setPageBackground; returns an uninstaller. */
@@ -481,11 +482,12 @@ export class GameController {
     if (this.renderer && this.camera) this.camera.setView(this.renderer.viewW, this.renderer.viewH);
   }
 
-  pause(): void {
+  pause(reason: PauseReason): void {
     const s = this.state.value;
     if (s !== "racing" && s !== "countdown") return;
     this.stateBeforePause = s;
     this.paused.value = true;
+    this.pauseReason.value = reason;
     this.audio.silenceContinuous();
     this.input.exitPointerLock();
     this.go("paused");

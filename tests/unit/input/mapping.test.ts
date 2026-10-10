@@ -274,7 +274,10 @@ describe("InputManager (no DOM)", () => {
     let p = pad([0, 0]);
     const im = new InputManager(settings, () => [p]);
     let pauses = 0;
-    im.onPauseRequest = () => pauses++;
+    im.onPauseRequest = (reason) => {
+      expect(reason).toBe("gamepad");
+      pauses++;
+    };
     im.sample(0);
     p = pad([0, 0], [9]);
     im.sample(0);

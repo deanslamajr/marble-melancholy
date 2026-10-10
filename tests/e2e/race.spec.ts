@@ -26,6 +26,7 @@ test("Escape pauses the sim and Escape resumes it", async ({ page }) => {
   await startRacing(page);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("pause-menu")).toBeVisible();
+  await expect(page.getByTestId("pause-reason")).toHaveText("PAUSE KEY");
   expect(await state(page)).toBe("paused");
   const h0 = await page.evaluate(() => window.__mm!.stateHash());
   await page.waitForTimeout(400);
@@ -33,6 +34,27 @@ test("Escape pauses the sim and Escape resumes it", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect.poll(() => state(page)).toBe("racing");
   await expect(page.getByTestId("pause-menu")).toBeHidden();
+});
+
+// Clicks while the cursor is captured steer; only the browser letting the cursor go pauses (G20).
+test("clicks keep racing, and a released cursor pauses with its reason", async ({ page }) => {
+  await openGame(page);
+  await startRacing(page);
+  const box = (await page.locator("#world").boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const locked = () => page.evaluate(() => document.pointerLockElement?.id === "world");
+  await expect
+    .poll(locked, { timeout: 2000 })
+    .toBe(true)
+    .catch(() => {});
+  test.skip(!(await locked()), "this browser grants no pointer lock to scripted clicks");
+  for (const fx of [0.2, 0.5, 0.8]) {
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * 0.6);
+  }
+  await page.waitForTimeout(300);
+  expect(await state(page)).toBe("racing");
+  await page.evaluate(() => document.exitPointerLock());
+  await expect(page.getByTestId("pause-reason")).toHaveText("CURSOR RELEASED");
 });
 
 test("running out of time ends the game and reaches the high-score flow", async ({ page }) => {

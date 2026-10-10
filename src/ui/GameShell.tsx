@@ -121,7 +121,7 @@ export function GameShell(props: { controller: GameController }) {
       if (s === "attract") c.dismiss();
       else if (s === "title") c.noteActivity();
       else if ((s === "racing" || s === "countdown") && (e.key === "Escape" || e.code === "KeyP"))
-        c.pause();
+        c.pause("key");
     };
     const onPointer = () => {
       c.unlockAudio();

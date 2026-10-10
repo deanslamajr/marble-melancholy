@@ -197,6 +197,7 @@ test("the pause button stays clear of both players' timers", async ({ page }, in
   await page.screenshot({ path: info.outputPath("two-players.png") });
   await page.locator(".touch-pause").tap();
   await expect.poll(() => state(page)).toBe("paused");
+  await expect(page.getByTestId("pause-reason")).toHaveText("PAUSE BUTTON");
 });
 
 test("the fullscreen toggle enters and leaves fullscreen where the API exists", async ({

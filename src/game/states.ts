@@ -1,5 +1,8 @@
 // Game FSM states and the allowed transitions (§7.9).
 
+/** What paused the race; the pause menu names it (G20). */
+export type PauseReason = "key" | "button" | "gamepad" | "cursor" | "hidden";
+
 export type GameState =
   | "boot"
   | "title"

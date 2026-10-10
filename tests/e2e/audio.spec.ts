@@ -56,6 +56,7 @@ test("hiding the page suspends audio and pauses the race; blur only suspends", a
   await setHidden(page, true);
   await expect.poll(async () => (await audio(page)).context).toBe("suspended");
   expect(await state(page)).toBe("paused");
+  await expect(page.getByTestId("pause-reason")).toHaveText("PAGE HIDDEN");
   await setHidden(page, false);
   await expect.poll(async () => (await audio(page)).context).toBe("running");
   expect(await state(page)).toBe("paused");

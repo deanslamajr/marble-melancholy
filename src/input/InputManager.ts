@@ -25,7 +25,8 @@ function isEditable(t: EventTarget | null): boolean {
  * sample() consumes pad presses and turns a pause press into onPauseRequest.
  */
 export class InputManager {
-  onPauseRequest: (() => void) | null = null;
+  /** "gamepad": a pad's Start button. "cursor": the browser released the pointer lock. */
+  onPauseRequest: ((reason: "gamepad" | "cursor") => void) | null = null;
   readonly touch = new TouchStickSource();
   readonly mouse = new MouseSource();
   readonly gamepads: GamepadSource;
@@ -137,7 +138,7 @@ export class InputManager {
     if (player === 0) {
       this.gamepads.update();
       const presses = this.gamepads.drain();
-      if (presses.some((p) => p.button === "pause")) this.onPauseRequest?.();
+      if (presses.some((p) => p.button === "pause")) this.onPauseRequest?.("gamepad");
     }
     const candidates: StickVector[] = [
       keyboardToWorld(this.keyboards[player].tick(TICK_DT), this.settings.keyboardMapping),
@@ -230,7 +231,7 @@ export class InputManager {
       this.mouse.reset();
       const byUs = this.exitingByUs;
       this.exitingByUs = false;
-      if (!byUs) this.onPauseRequest?.();
+      if (!byUs) this.onPauseRequest?.("cursor");
     }
   };
 
