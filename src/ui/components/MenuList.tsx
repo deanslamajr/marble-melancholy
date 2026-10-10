@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useController } from "../context";
 
 export interface MenuItem {
@@ -22,7 +22,9 @@ export function MenuList(props: { items: MenuItem[]; onBack?: () => void; testId
   const backRef = useRef(props.onBack);
   backRef.current = props.onBack;
 
-  useEffect(() => {
+  // A layout effect listens from the moment the menu renders. A plain effect waits for a paint, so
+  // a key pressed right after the menu appears (Esc to resume a pause) could be lost (G17).
+  useLayoutEffect(() => {
     const move = (d: number) => {
       setFocus((f) => {
         const items = itemsRef.current;

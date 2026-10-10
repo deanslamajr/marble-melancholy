@@ -23,6 +23,9 @@ test("input never restarts the music; only a new race does", async ({ page }) =>
   for (let i = 0; i < 3; i++) await page.mouse.click(5 + i, 5);
   await page.keyboard.press("Space");
   await page.keyboard.press("ArrowDown");
+  // Space selects the title's first item. Wait for it to land: slow engines handle the key after
+  // press() returns, and a late player select would replace the race started below (T19).
+  await expect.poll(() => state(page)).toBe("playerSelect");
   expect((await audio(page)).musicStarts).toBe(1);
 
   await page.evaluate(() => window.__mm!.startCourse(1));
