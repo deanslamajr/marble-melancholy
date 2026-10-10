@@ -13,6 +13,7 @@ export default defineConfig({
       "tests/enforcement/**/*.test.ts",
       "tests/storage/**/*.test.ts",
       "tests/perf/**/*.test.ts",
+      "tests/server/**/*.test.ts",
     ],
     testTimeout: 60_000,
     hookTimeout: 60_000,

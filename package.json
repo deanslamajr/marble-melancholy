@@ -30,10 +30,13 @@
     "levels:check": "tsx tools/levelc/cli.ts check levels/compiled",
     "levels:schema": "tsx tools/levelc/cli.ts schema --out levels/schema",
     "icons": "tsx tools/icons/generate.ts",
+    "api:build": "vite build --config vite.server.config.ts",
+    "api:start": "node dist-server/server.mjs",
     "mmlevel": "tsx tools/levelc/cli.ts"
   },
   "dependencies": {
     "@preact/signals": "^1.3.0",
+    "pg": "^8.23.1",
     "preact": "^10.22.0",
     "yaml": "^2.5.0",
     "zod": "^3.23.8"
@@ -42,6 +45,7 @@
     "@playwright/test": "^1.47.0",
     "@preact/preset-vite": "^2.9.0",
     "@types/node": "^20.16.0",
+    "@types/pg": "^8.23.1",
     "commander": "^12.1.0",
     "eslint": "^9.10.0",
     "eslint-plugin-react-hooks": "^5.0.0",
