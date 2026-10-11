@@ -161,6 +161,9 @@ describe("router", () => {
     { name: "playGenerated", difficulty: "medium", seed: 4294967295 },
     { name: "playGenerated", difficulty: "expert", seed: 9, version: 2 },
     { name: "generate", difficulty: "expert", seed: 0, version: 1 },
+    { name: "shared" },
+    { name: "sharedCourse", code: "hgksu4w" },
+    { name: "playShared", code: "a2b3c4d" },
   ];
 
   it("routeHash and parseRoute round-trip", () => {
@@ -172,6 +175,13 @@ describe("router", () => {
     expect(parseRoute("#")).toEqual({ name: "title" });
     expect(parseRoute("#/play/")).toEqual({ name: "play" });
     expect(parseRoute("#/nowhere")).toEqual({ name: "title" });
+  });
+
+  it("share links accept any letter case and send bad codes to the list (P19)", () => {
+    expect(parseRoute("#/c/HGKSU4W")).toEqual({ name: "sharedCourse", code: "hgksu4w" });
+    expect(parseRoute("#/c/hgks")).toEqual({ name: "shared" });
+    expect(parseRoute("#/c/hgksu40")).toEqual({ name: "shared" });
+    expect(parseRoute("#/play/shared/nope")).toEqual({ name: "shared" });
   });
 
   it("generated-course URLs are shareable and malformed ones fall back to the generator", () => {

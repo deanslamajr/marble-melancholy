@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { navigate } from "../../app/router";
 import { pickFile } from "../../app/files";
+import type { CompiledLevel } from "../../level/types";
 import { LevelLoader } from "../../levels/loader";
 import { fixtureIds } from "../../levels/manifest";
+import { shareCourse, shareUrl } from "../../net/courses";
 import { TICK_HZ } from "../../sim/constants";
 import {
   deleteCustomLevel,
@@ -56,6 +58,30 @@ export function CustomLevels() {
     }
   };
 
+  /** Publishes a course and hands its link to the system share sheet or the clipboard (P19). */
+  const share = async (level: CompiledLevel) => {
+    if (!confirm(`Share "${level.name}"? Everyone can then find it in SHARED COURSES.`)) return;
+    setMsg("sharing…");
+    const r = await shareCourse(level);
+    if (!r) return setMsg("the course server cannot be reached; try again later");
+    if ("error" in r) return setMsg(r.error);
+    const url = shareUrl(r.code);
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: level.name, url });
+        return setMsg(`shared: ${url}`);
+      } catch {
+        // Cancelled or refused: fall back to the clipboard.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setMsg(`link copied: ${url}`);
+    } catch {
+      setMsg(url);
+    }
+  };
+
   const doImport = async () => {
     const f = await pickFile();
     if (!f) return;
@@ -98,6 +124,14 @@ export function CustomLevels() {
             {top && <span class="meta">top {formatTop(top[r.level.stamp.contentHash])}</span>}
             <button type="button" class="btn small" onClick={() => void play(r.level)}>
               PLAY
+            </button>
+            <button
+              type="button"
+              class="btn small ghost"
+              data-testid="custom-share"
+              onClick={() => void share(r.level)}
+            >
+              SHARE
             </button>
             <button
               type="button"

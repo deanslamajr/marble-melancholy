@@ -17,6 +17,7 @@ export function TitleScreen() {
     { label: "EXTRA COURSES", onSelect: () => navigate({ name: "extras" }) },
     { label: "GENERATE COURSE", onSelect: () => navigate({ name: "generate" }) },
     { label: "CUSTOM RACES", onSelect: () => navigate({ name: "custom" }) },
+    { label: "SHARED COURSES", onSelect: () => navigate({ name: "shared" }) },
     { label: "LEVEL BUILDER", onSelect: () => navigate({ name: "builder" }) },
     { label: "HIGH SCORES", onSelect: () => navigate({ name: "scores" }) },
     { label: "SETTINGS", onSelect: () => navigate({ name: "settings" }) },

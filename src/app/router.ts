@@ -1,5 +1,6 @@
 // Hash router (D10): works from file:// and any static host.
 import { signal } from "@preact/signals";
+import { SHARE_CODE } from "../net/courses";
 
 export type GenDifficulty = "easy" | "medium" | "hard" | "expert" | "insane" | "nightmare";
 
@@ -15,7 +16,10 @@ export type Route =
   | { name: "scores" }
   | { name: "settings" }
   | { name: "builder" }
-  | { name: "builderDraft"; draftId: string };
+  | { name: "builderDraft"; draftId: string }
+  | { name: "shared" }
+  | { name: "sharedCourse"; code: string }
+  | { name: "playShared"; code: string };
 
 export const GEN_DIFFICULTIES: readonly GenDifficulty[] = [
   "easy",
@@ -55,6 +59,16 @@ export function parseRoute(hash: string): Route {
   if (a === undefined) return { name: "title" };
   if (a === "play" && b === "custom" && c) return { name: "playCustom", id: c };
   if (a === "play" && b === "extra" && c) return { name: "playExtra", id: c };
+  // Share links (P19): a malformed code opens the shared-course list instead.
+  if (a === "play" && b === "shared") {
+    const code = c?.toLowerCase();
+    return code && SHARE_CODE.test(code) ? { name: "playShared", code } : { name: "shared" };
+  }
+  if (a === "c") {
+    const code = b?.toLowerCase();
+    return code && SHARE_CODE.test(code) ? { name: "sharedCourse", code } : { name: "shared" };
+  }
+  if (a === "shared") return { name: "shared" };
   if (a === "play" && b === "generated") {
     const g = genParams(c, d, e);
     return g ? { name: "playGenerated", ...g } : { name: "generate" };
@@ -101,6 +115,12 @@ export function routeHash(r: Route): string {
       return "#/builder";
     case "builderDraft":
       return `#/builder/${encodeURIComponent(r.draftId)}`;
+    case "shared":
+      return "#/shared";
+    case "sharedCourse":
+      return `#/c/${r.code}`;
+    case "playShared":
+      return `#/play/shared/${r.code}`;
   }
 }
 

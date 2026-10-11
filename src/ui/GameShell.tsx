@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { navigate, route, type Route } from "../app/router";
+import { startSharedByCode } from "../app/sharedCourse";
 import type { GameController } from "../game/GameController";
 import type { GameState } from "../game/states";
 import { LevelLoader } from "../levels/loader";
@@ -91,7 +92,12 @@ export function GameShell(props: { controller: GameController }) {
         case "extras":
         case "generate":
         case "playGenerated":
+        case "shared":
+        case "sharedCourse":
           if (state !== "custom") c.openCustom();
+          break;
+        case "playShared":
+          void startSharedByCode(c, r.code);
           break;
         case "playExtra":
           void startExtraById(c, r.id);
@@ -220,12 +226,16 @@ function LazyMenu({ load }: { load: () => Promise<MenuComponent> }) {
 
 const loadExtras = () => import("./components/ExtraCourses").then((m) => m.ExtraCourses);
 const loadGenerate = () => import("./components/GenerateScreen").then((m) => m.GenerateScreen);
+const loadShared = () => import("./components/SharedCourses").then((m) => m.SharedCourses);
 
 /** The "custom" game state hosts every single-race menu; the route picks which one. */
 function SingleRaceMenu() {
   const name = route.value.name;
   if (name === "extras" || name === "playExtra") return <LazyMenu load={loadExtras} />;
   if (name === "generate" || name === "playGenerated") return <LazyMenu load={loadGenerate} />;
+  if (name === "shared" || name === "sharedCourse" || name === "playShared") {
+    return <LazyMenu load={loadShared} />;
+  }
   return <CustomLevels />;
 }
 

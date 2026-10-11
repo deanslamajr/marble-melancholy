@@ -33,6 +33,8 @@ The beta shares its GKE Gateway with the user's llmgag sites. If any route on th
 3. Run `npm run deploy` only with the user's approval.
 4. After the deploy, run `npm run deploy:status` again. Compare the Gateway state and the llmgag status codes with step 2.
 
+To moderate shared courses, run `npm run admin -- list`, then `npm run admin -- hide <code>` (or `unhide`). It runs inside the API pod. Hide a course only when the user asks.
+
 ## Working habits
 
 - Commit to `main` in small steps. Run only the relevant tests while you iterate. `npm test` takes about a minute.
