@@ -24,7 +24,7 @@ describe.skipIf(!url)("PgStore against Postgres (P15)", () => {
   });
 
   it("creates its schema, ranks entries and ignores repeats", async () => {
-    await pool.query("DROP TABLE IF EXISTS race_times, levels, campaign_scores");
+    await pool.query("DROP TABLE IF EXISTS shared_courses, race_times, levels, campaign_scores");
     await store.init();
     await store.init();
     expect(await store.ping()).toBe(true);
@@ -70,5 +70,46 @@ describe.skipIf(!url)("PgStore against Postgres (P15)", () => {
       [other]: 500,
     });
     await expect(store.addTime(time(1, "t5", `sha256:${"c".repeat(64)}`), 10)).rejects.toThrow();
+  });
+
+  it("shares each course under one code and lists, hides and shows it (P19)", async () => {
+    const h = `sha256:${"a".repeat(64)}`;
+    const other = `sha256:${"b".repeat(64)}`;
+    const codes = ["aaaaaaa", "aaaaaaa", "bbbbbbb"];
+    const next = () => codes.shift()!;
+    const first = await store.shareCourse(
+      { contentHash: h, name: "One", author: "PG", par: 9 },
+      next,
+    );
+    expect(first).toEqual({ code: "aaaaaaa", hidden: false });
+    // A taken code is retried; the same course keeps its code.
+    const second = await store.shareCourse(
+      { contentHash: other, name: "Two", author: null, par: 12 },
+      next,
+    );
+    expect(second).toEqual({ code: "bbbbbbb", hidden: false });
+    const again = await store.shareCourse(
+      { contentHash: h, name: "One", author: "PG", par: 9 },
+      () => "ccccccc",
+    );
+    expect(again).toEqual({ code: "aaaaaaa", hidden: false });
+    expect(await store.getShared("aaaaaaa")).toEqual({
+      contentHash: h,
+      json: '{"v":1}',
+      hidden: false,
+    });
+    const newest = await store.listShared({ sort: "new", limit: 10, offset: 0 });
+    expect(newest.map((c) => c.code)).toEqual(["bbbbbbb", "aaaaaaa"]);
+    const popular = await store.listShared({ sort: "popular", limit: 10, offset: 0 });
+    expect(popular[0]).toMatchObject({ code: "aaaaaaa", times: 3, best: { ticks: 700 } });
+    expect(popular[1]).toMatchObject({ code: "bbbbbbb", times: 1, author: null });
+    expect(await store.setHidden("aaaaaaa", true)).toBe(true);
+    expect((await store.getShared("aaaaaaa"))?.hidden).toBe(true);
+    expect(
+      (await store.listShared({ sort: "new", limit: 10, offset: 0 })).map((c) => c.code),
+    ).toEqual(["bbbbbbb"]);
+    const all = await store.listShared({ sort: "new", limit: 10, offset: 0, includeHidden: true });
+    expect(all.find((c) => c.code === "aaaaaaa")?.hidden).toBe(true);
+    expect(await store.setHidden("zzzzzzz", true)).toBe(false);
   });
 });

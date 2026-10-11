@@ -2,20 +2,25 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHandler } from "../../server/app";
+import { checkCourse } from "../../server/checkCourse";
 import { MemoryStore } from "../../server/store";
 import { encodeInputs } from "../../src/game/courseRun";
+import { contentHashOf } from "../../src/level/stamp";
+import { SHARE_CODE } from "../../src/net/courses";
 import { LevelLoader } from "../../src/levels/loader";
 import { loadExtra } from "../helpers";
 import { courseLevels, playCourse, playRace, solutionSteer, solve } from "../helpers/course";
 
 let server: Server;
 let base = "";
+const store = new MemoryStore();
 
 beforeAll(async () => {
   const handler = createHandler({
-    store: new MemoryStore(),
+    store,
     course: async () => courseLevels,
     loadLevel: (json) => LevelLoader.load(json),
+    checkCourse,
   });
   server = createServer(handler);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -116,5 +121,63 @@ describe("race-time boards (P17)", () => {
     expect((await send({ initials: "BAD", race: run.race })).status).toBe(400);
     expect((await fetch(`${base}/api/boards/xyz`)).status).toBe(404);
     expect((await fetch(`${base}/api/boards?h=xyz`)).status).toBe(400);
+  });
+});
+
+describe("shared courses (P19)", () => {
+  const level = loadExtra("puddle-hop");
+  const other = loadExtra("ice-rink-blues");
+  const share = (body: unknown) =>
+    fetch(`${base}/api/courses`, { method: "POST", body: JSON.stringify(body) });
+
+  it("gives a course one short code and serves it back", async () => {
+    const r = await share({ level });
+    expect(r.status).toBe(200);
+    const { code } = await r.json();
+    expect(code).toMatch(SHARE_CODE);
+    expect((await (await share({ level })).json()).code).toBe(code);
+    const got = await (await fetch(`${base}/api/courses/${code}`)).json();
+    expect(got.level.stamp.contentHash).toBe(level.stamp.contentHash);
+    expect((await fetch(`${base}/api/courses/abcdefg`)).status).toBe(404);
+    expect((await fetch(`${base}/api/courses/O0O0O0O`)).status).toBe(404);
+  });
+
+  it("lists courses newest first or by times raced, with each board's best", async () => {
+    await share({ level: other });
+    const newest = (await (await fetch(`${base}/api/courses`)).json()).courses;
+    expect(newest.map((c: { name: string }) => c.name)).toEqual([other.name, level.name]);
+    const popular = await (await fetch(`${base}/api/courses?sort=popular`)).json();
+    expect(popular.more).toBe(false);
+    // The board tests above put two times on Puddle Hop.
+    expect(popular.courses[0]).toMatchObject({ name: level.name, times: 2, par: level.timing.par });
+    expect(popular.courses[0].best).toMatchObject({ initials: "FST" });
+    expect(popular.courses[1]).toMatchObject({ name: other.name, times: 0, best: null });
+    expect((await fetch(`${base}/api/courses?offset=-1`)).status).toBe(400);
+  });
+
+  it("refuses edited and unfinishable courses", async () => {
+    expect((await share({ level: { ...level, name: "Renamed" } })).status).toBe(422);
+    const stuck = { ...other, solution: { ...other.solution, runs: [600, 0, 0] } };
+    const stamped = {
+      ...stuck,
+      stamp: { ...stuck.stamp, contentHash: await contentHashOf(stuck) },
+    };
+    const r = await share({ level: stamped });
+    expect(r.status).toBe(422);
+    expect((await r.json()).error).toMatch(/^course rejected: .*replay/);
+    expect((await share({})).status).toBe(400);
+  });
+
+  it("hidden courses leave the list and their links say so", async () => {
+    const { code } = await (await share({ level: other })).json();
+    expect(await store.setHidden(code, true)).toBe(true);
+    expect((await fetch(`${base}/api/courses/${code}`)).status).toBe(410);
+    expect((await share({ level: other })).status).toBe(410);
+    const names = (await (await fetch(`${base}/api/courses`)).json()).courses.map(
+      (c: { name: string }) => c.name,
+    );
+    expect(names).toEqual([level.name]);
+    expect(await store.setHidden(code, false)).toBe(true);
+    expect((await fetch(`${base}/api/courses/${code}`)).status).toBe(200);
   });
 });

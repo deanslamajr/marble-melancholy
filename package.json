@@ -1,7 +1,7 @@
 {
   "name": "marble-melancholy",
   "version": "1.0.0",
-  "description": "Marble Melancholy — an isometric marble racer for the browser with a built-in level builder.",
+  "description": "Marble Melancholy \u2014 an isometric marble racer for the browser with a built-in level builder.",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -18,6 +18,7 @@
     "preview": "vite preview --port 4173 --strictPort",
     "deploy": "npm run build && npm run api:build && tsx tools/deploy/gke.ts deploy",
     "deploy:status": "tsx tools/deploy/gke.ts status",
+    "admin": "tsx tools/deploy/gke.ts admin",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

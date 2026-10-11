@@ -241,11 +241,23 @@ async function status(): Promise<void> {
   }
 }
 
+/** Moderation of shared courses (P19): runs admin.mjs inside the API pod, next to its DB settings. */
+function admin(args: string[]): void {
+  run(
+    "kubectl",
+    kubectl("-n", NAMESPACE, "exec", "deploy/marble-api", "--", "node", "admin.mjs", ...args),
+  );
+}
+
 const cmd = process.argv[2] ?? "status";
 try {
   if (cmd === "deploy") deploy();
   else if (cmd === "status") await status();
-  else throw new Error("usage: gke.ts deploy | status");
+  else if (cmd === "admin") admin(process.argv.slice(3));
+  else
+    throw new Error(
+      "usage: gke.ts deploy | status | admin <list [n] | hide <code> | unhide <code>>",
+    );
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 1;

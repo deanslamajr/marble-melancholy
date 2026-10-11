@@ -3,6 +3,7 @@
 import type pg from "pg";
 import type { CourseRecording, RaceRecording } from "../src/game/courseRun";
 import type { TimeEntry } from "../src/net/boards";
+import type { SharedSummary } from "../src/net/courses";
 import type { HighScoreEntry } from "../src/storage/highscores";
 
 export interface NewCampaignScore {
@@ -27,6 +28,21 @@ export interface NewRaceTime {
   build: string | null;
 }
 
+export interface NewShare {
+  contentHash: string;
+  name: string;
+  author: string | null;
+  par: number;
+}
+
+export interface ListOptions {
+  sort: "new" | "popular";
+  limit: number;
+  offset: number;
+  /** Moderation sees hidden courses too. */
+  includeHidden?: boolean;
+}
+
 export interface Store {
   init(): Promise<void>;
   ping(): Promise<boolean>;
@@ -44,6 +60,16 @@ export interface Store {
   bestTimes(contentHashes: readonly string[]): Promise<Record<string, TimeEntry>>;
   /** Stores the time unless this run was stored before; returns its place like addCampaign. */
   addTime(t: NewRaceTime, limit: number): Promise<{ index: number; duplicate: boolean }>;
+  /**
+   * Shares a stored course under a new code, or returns the code it already has (P19). `newCode`
+   * is called again while a code is taken.
+   */
+  shareCourse(s: NewShare, newCode: () => string): Promise<{ code: string; hidden: boolean }>;
+  /** A shared course's JSON text, or null for an unknown code. */
+  getShared(code: string): Promise<{ contentHash: string; json: string; hidden: boolean } | null>;
+  listShared(o: ListOptions): Promise<SharedSummary[]>;
+  /** Hides or shows a shared course; false for an unknown code. */
+  setHidden(code: string, hidden: boolean): Promise<boolean>;
 }
 
 interface Row extends HighScoreEntry {
@@ -72,11 +98,19 @@ function toTime(r: TimeEntry): TimeEntry {
   return { initials: r.initials, ticks: r.ticks, date: r.date };
 }
 
+interface ShareRow extends NewShare {
+  code: string;
+  hidden: boolean;
+  date: string;
+  seq: number;
+}
+
 export class MemoryStore implements Store {
   private rows: Row[] = [];
   private nextId = 1;
   private readonly levels = new Map<string, string>();
   private times: TimeRow[] = [];
+  private shares: ShareRow[] = [];
 
   async init(): Promise<void> {}
 
@@ -145,6 +179,52 @@ export class MemoryStore implements Store {
     const top = this.board(t.contentHash).slice(0, limit);
     return { index: top.indexOf(row), duplicate: dup !== undefined };
   }
+
+  async shareCourse(s: NewShare, newCode: () => string) {
+    if (!this.levels.has(s.contentHash)) throw new Error("unknown course");
+    const old = this.shares.find((x) => x.contentHash === s.contentHash);
+    if (old) return { code: old.code, hidden: old.hidden };
+    let code = newCode();
+    while (this.shares.some((x) => x.code === code)) code = newCode();
+    const date = new Date().toISOString();
+    this.shares.push({ ...s, code, hidden: false, date, seq: this.nextId++ });
+    return { code, hidden: false };
+  }
+
+  async getShared(code: string) {
+    const s = this.shares.find((x) => x.code === code);
+    if (!s) return null;
+    return { contentHash: s.contentHash, json: this.levels.get(s.contentHash)!, hidden: s.hidden };
+  }
+
+  async listShared(o: ListOptions): Promise<SharedSummary[]> {
+    const rows = this.shares
+      .filter((s) => o.includeHidden || !s.hidden)
+      .map((s) => {
+        const board = this.board(s.contentHash);
+        return { s, times: board.length, best: board[0] ? toTime(board[0]) : null };
+      });
+    rows.sort((a, b) =>
+      o.sort === "popular" ? b.times - a.times || b.s.seq - a.s.seq : b.s.seq - a.s.seq,
+    );
+    return rows.slice(o.offset, o.offset + o.limit).map(({ s, times, best }) => ({
+      code: s.code,
+      name: s.name,
+      author: s.author,
+      par: s.par,
+      contentHash: s.contentHash,
+      date: s.date,
+      times,
+      best,
+      ...(o.includeHidden ? { hidden: s.hidden } : {}),
+    }));
+  }
+
+  async setHidden(code: string, hidden: boolean): Promise<boolean> {
+    const s = this.shares.find((x) => x.code === code);
+    if (s) s.hidden = hidden;
+    return s !== undefined;
+  }
 }
 
 function toEntry(r: HighScoreEntry): HighScoreEntry {
@@ -184,6 +264,16 @@ CREATE TABLE IF NOT EXISTS race_times (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS race_times_rank ON race_times (content_hash, ticks ASC, id ASC);
+CREATE TABLE IF NOT EXISTS shared_courses (
+  id BIGSERIAL PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  content_hash TEXT NOT NULL UNIQUE REFERENCES levels (content_hash),
+  name TEXT NOT NULL,
+  author TEXT,
+  par INTEGER NOT NULL,
+  hidden BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 function timeEntry(x: { initials: string; ticks: number; created_at: Date | string }): TimeEntry {
@@ -309,5 +399,77 @@ export class PgStore implements Store {
       [t.contentHash, limit],
     );
     return { index: top.rows.findIndex((x) => String(x.id) === String(id)), duplicate };
+  }
+
+  async shareCourse(s: NewShare, newCode: () => string) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const ins = await this.pool.query(
+        `INSERT INTO shared_courses (code, content_hash, name, author, par)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING RETURNING code`,
+        [newCode(), s.contentHash, s.name, s.author, s.par],
+      );
+      if (ins.rowCount === 1) return { code: ins.rows[0].code as string, hidden: false };
+      const old = await this.pool.query(
+        "SELECT code, hidden FROM shared_courses WHERE content_hash = $1",
+        [s.contentHash],
+      );
+      if (old.rowCount === 1)
+        return { code: old.rows[0].code as string, hidden: old.rows[0].hidden };
+      // The code was taken by another course: try a new one.
+    }
+    throw new Error("no free share code");
+  }
+
+  async getShared(code: string) {
+    const r = await this.pool.query(
+      `SELECT s.content_hash, s.hidden, l.level_json FROM shared_courses s
+       JOIN levels l ON l.content_hash = s.content_hash WHERE s.code = $1`,
+      [code],
+    );
+    const x = r.rows[0];
+    return x ? { contentHash: x.content_hash, json: x.level_json, hidden: x.hidden } : null;
+  }
+
+  async listShared(o: ListOptions): Promise<SharedSummary[]> {
+    const order =
+      o.sort === "popular"
+        ? "times DESC, s.created_at DESC, s.id DESC"
+        : "s.created_at DESC, s.id DESC";
+    const r = await this.pool.query(
+      `SELECT s.code, s.name, s.author, s.par, s.content_hash, s.created_at, s.hidden,
+         (SELECT count(*)::int FROM race_times t WHERE t.content_hash = s.content_hash) AS times,
+         b.initials AS best_initials, b.ticks AS best_ticks, b.created_at AS best_at
+       FROM shared_courses s
+       LEFT JOIN LATERAL (
+         SELECT initials, ticks, created_at FROM race_times t
+         WHERE t.content_hash = s.content_hash ORDER BY ticks ASC, id ASC LIMIT 1
+       ) b ON true
+       WHERE $1 OR NOT s.hidden
+       ORDER BY ${order} LIMIT $2 OFFSET $3`,
+      [o.includeHidden === true, o.limit, o.offset],
+    );
+    return r.rows.map((x) => ({
+      code: x.code,
+      name: x.name,
+      author: x.author,
+      par: x.par,
+      contentHash: x.content_hash,
+      date: new Date(x.created_at).toISOString(),
+      times: x.times,
+      best:
+        x.best_ticks === null
+          ? null
+          : timeEntry({ initials: x.best_initials, ticks: x.best_ticks, created_at: x.best_at }),
+      ...(o.includeHidden ? { hidden: x.hidden } : {}),
+    }));
+  }
+
+  async setHidden(code: string, hidden: boolean): Promise<boolean> {
+    const r = await this.pool.query("UPDATE shared_courses SET hidden = $2 WHERE code = $1", [
+      code,
+      hidden,
+    ]);
+    return r.rowCount === 1;
   }
 }

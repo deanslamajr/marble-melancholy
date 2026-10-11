@@ -1,6 +1,6 @@
 // HTTP handler for the score server (P15, P17). Every submitted score or time is re-earned by
 // replaying its recording; the client's own numbers are never trusted.
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import {
@@ -10,6 +10,7 @@ import {
   type RaceRecording,
 } from "../src/game/courseRun";
 import type { CompiledLevel } from "../src/level/types";
+import { PAGE_SIZE, SHARE_ALPHABET, SHARE_CODE } from "../src/net/courses";
 import { normalizeInitials } from "../src/storage/highscores";
 import type { Store } from "./store";
 
@@ -22,6 +23,15 @@ const MAX_BEST_BOARDS = 40;
 /** Parsed courses kept in memory, newest first. */
 const LEVEL_CACHE = 32;
 const HEX64 = /^[0-9a-f]{64}$/;
+/** Deepest page offset the course list serves. */
+const MAX_OFFSET = 3000;
+
+/** A random share code (P19); the store retries when one is taken. */
+export function newShareCode(): string {
+  let code = "";
+  for (let i = 0; i < 7; i++) code += SHARE_ALPHABET[randomInt(SHARE_ALPHABET.length)];
+  return code;
+}
 
 const TimeSubmission = z.object({
   initials: z.string().max(8),
@@ -61,6 +71,8 @@ export interface AppDeps {
   course: () => Promise<CompiledLevel[]>;
   /** Checks an uploaded course's schema, limits and stamp (LevelLoader.load). */
   loadLevel: (json: unknown) => Promise<CompiledLevel>;
+  /** The stricter gate for shared courses: the embedded solution must also finish (checkCourse). */
+  checkCourse: (json: unknown) => Promise<CompiledLevel>;
   log?: (msg: string) => void;
 }
 
@@ -80,7 +92,7 @@ export function createHandler(deps: AppDeps) {
   const levels = new Map<string, CompiledLevel>();
 
   /** Campaign scores and race times count against separate allowances. */
-  function rateLimit(req: IncomingMessage, kind: "campaign" | "boards"): void {
+  function rateLimit(req: IncomingMessage, kind: "campaign" | "boards" | "share"): void {
     const fwd = req.headers["x-forwarded-for"];
     const ip =
       (Array.isArray(fwd) ? fwd[0] : fwd)?.split(",")[0]?.trim() ?? req.socket.remoteAddress;
@@ -197,6 +209,49 @@ export function createHandler(deps: AppDeps) {
     };
   }
 
+  /** Publishes a course and answers with its share code (P19). */
+  async function share(body: unknown) {
+    const json = (body as { level?: unknown } | null)?.level;
+    if (json === undefined) throw new HttpError(400, "malformed submission");
+    let level: CompiledLevel;
+    try {
+      level = await deps.checkCourse(json);
+    } catch (e) {
+      throw new HttpError(422, `course rejected: ${(e as Error).message}`);
+    }
+    const contentHash = level.stamp.contentHash;
+    await deps.store.putLevel(contentHash, level.name, JSON.stringify(json));
+    const r = await deps.store.shareCourse(
+      {
+        contentHash,
+        name: level.name.slice(0, 80),
+        author: level.author ? level.author.slice(0, 40) : null,
+        par: level.timing.par,
+      },
+      newShareCode,
+    );
+    if (r.hidden) throw new HttpError(410, "this course was removed");
+    log(`shared ${r.code} (${level.name})`);
+    return { code: r.code };
+  }
+
+  async function sharedCourse(code: string) {
+    const s = await deps.store.getShared(code);
+    if (!s) throw new HttpError(404, "no course has that code");
+    if (s.hidden) throw new HttpError(410, "this course was removed");
+    return { code, level: JSON.parse(s.json) };
+  }
+
+  async function listCourses(url: URL) {
+    const sort = url.searchParams.get("sort") === "popular" ? "popular" : "new";
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    if (!Number.isInteger(offset) || offset < 0 || offset > MAX_OFFSET) {
+      throw new HttpError(400, "bad offset");
+    }
+    const rows = await deps.store.listShared({ sort, limit: PAGE_SIZE + 1, offset });
+    return { courses: rows.slice(0, PAGE_SIZE), more: rows.length > PAGE_SIZE };
+  }
+
   async function route(req: IncomingMessage): Promise<unknown> {
     const url = new URL(req.url ?? "/", "http://local");
     const path = url.pathname.replace(/\/+$/, "");
@@ -212,6 +267,19 @@ export function createHandler(deps: AppDeps) {
       throw new HttpError(405, "method not allowed");
     }
     if (path === "/api/boards" && req.method === "GET") return bestTimes(url);
+    if (path === "/api/courses") {
+      if (req.method === "GET") return listCourses(url);
+      if (req.method === "POST") {
+        rateLimit(req, "share");
+        return share(await readJson(req));
+      }
+      throw new HttpError(405, "method not allowed");
+    }
+    const course = /^\/api\/courses\/([^/]+)$/.exec(path);
+    if (course && req.method === "GET") {
+      if (!SHARE_CODE.test(course[1]!)) throw new HttpError(404, "no course has that code");
+      return sharedCourse(course[1]!);
+    }
     const board = /^\/api\/boards\/([0-9a-f]{64})$/.exec(path);
     if (board) {
       const key = board[1]!;
